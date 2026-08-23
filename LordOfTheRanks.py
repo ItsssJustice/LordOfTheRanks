@@ -2,8 +2,10 @@
 # Import core libraries
 import os
 import importlib
-import discord
 import dotenv
+import json
+import discord
+import mysql.connector
 # Load all LordOfTheRanks functions
 from Functions import *
 
@@ -19,8 +21,20 @@ dotenv.load_dotenv()
 ENV_TOKEN = str(os.getenv("DISCORD_BOT_API_TOKEN"))
 #Homeland's server UUID; ensures nobody else can use the bot to avoid conflicts if other servers get access to it for whatever reason (as we're not making a universal product)
 ENV_GUILD = str(os.getenv("DISCORD_GUILD"))
+#SQL Database connection environment variables
+SQL_Host = str(os.getenv("MYSQL_HOST"))
+SQL_User = str(os.getenv("MYSQL_USER"))
+SQL_Pass = str(os.getenv("MYSQL_PASS"))
 
-# Namespace variables required to execute command code
+#SQL Database name
+SQL_Database = 'lordoftheranks'
+#SQL Database definition
+SQL_Table_Definitions_Filepath = "MySQL_Table_Definitions.json"
+
+#Connect to the SQL database and verify the database contents and structure are as expected
+SQL_Connection, SQL_Cursor = sql_config.SQL_Verify_And_Connect(SQL_Host, SQL_User, SQL_Pass, SQL_Database, SQL_Table_Definitions_Filepath)
+
+# Namespace variables required to execute discord command code
 Command_Namespace = {
     "tree": tree,
     "discord": discord,

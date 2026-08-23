@@ -1,0 +1,11 @@
+{
+    "discord_members": {
+        "discord_id": "INT PRIMARY KEY",
+        "name_user": "VARCHAR(255) NOT NULL",
+        "name_global": "VARCHAR(255) NOT NULL",
+        "name_display": "VARCHAR(255) NOT NULL",
+        "name_nick": "VARCHAR(255) NOT NULL",
+        "discriminator": "INT",
+        "created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP"
+    }
+}
