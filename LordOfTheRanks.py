@@ -1,6 +1,8 @@
 
 # Import core libraries
 import os
+import asyncio
+import datetime
 import importlib
 import dotenv
 import json
@@ -36,10 +38,18 @@ SQL_Connection, SQL_Cursor = sql_config.SQL_Verify_And_Connect(SQL_Host, SQL_Use
 
 # Namespace variables required to execute discord command code
 Command_Namespace = {
+    "client": client,
     "tree": tree,
     "discord": discord,
     "app_commands": discord.app_commands,
-    "ENV_GUILD": ENV_GUILD
+    "datetime": datetime,
+    "ENV_GUILD": ENV_GUILD,
+    #Poll support
+    "poll_store": poll_store,
+    "poll_format": poll_format,
+    "poll_data": poll_data,
+    "secret_store": secret_store,
+    "secret_view": secret_view
 }
 
 #Execute all slash-command code as submodules to keep body code easy to read
@@ -52,6 +62,21 @@ for Command_File in Directory_Contents:
         with open(Command_File.path, "r", encoding="utf-8") as f:
             Command_Module_Code = f.read()
         exec(Command_Module_Code, Command_Namespace)
+
+# Publish the result of any secret ballot whose time is up. Native polls do not
+# need this; discord expires those itself.
+async def Close_Expired_Ballots():
+    await client.wait_until_ready()
+    while not client.is_closed():
+        try:
+            for Ballot_Record in list(secret_store.Get().values()):
+                if Ballot_Record.get("closed") or not secret_store.Is_Closed(Ballot_Record):
+                    continue
+                print("Secret ballot '% s' reached its deadline, closing" % Ballot_Record["label"])
+                await secret_view.Refresh_Message(client, secret_store.Close(Ballot_Record["label"]))
+        except Exception as Error:
+            print("Ballot closer hit an error: % r" % Error)
+        await asyncio.sleep(60)
 
 # Display ready message
 @client.event
@@ -71,6 +96,17 @@ async def on_ready():
     print("Getting Guild Members")
     Guild_Member_List = guild_members.Get(client, guild_id=ENV_GUILD);
     guild_members.Display(Guild_Member_List)
+
+    #Secret ballots are message buttons, and a button only keeps working across a
+    #restart if its view is re-registered by custom_id. Do that for every open one.
+    Open_Ballots = [R for R in secret_store.Get().values() if not secret_store.Is_Closed(R)]
+    for Ballot_Record in Open_Ballots:
+        client.add_view(secret_view.Ballot(Ballot_Record["label"], Ballot_Record["answers"]))
+    print("Re-registered % d open secret ballot(s)" % len(Open_Ballots))
+
+    #Discord enforces a native poll's duration itself, but a secret ballot is ours
+    #to close, so watch for expiry and publish the result when one runs out.
+    client.loop.create_task(Close_Expired_Ballots())
 
     #Bot ready to perform async actions on demand
     print("Bot Ready!")

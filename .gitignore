@@ -1,3 +1,5 @@
 .env
 *.sublime-workspace
 *.pyc
+Polls.json
+SecretPolls.json
