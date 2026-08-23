@@ -16,9 +16,9 @@ tree = discord.app_commands.CommandTree(client)
 #Load environment variables from external file
 dotenv.load_dotenv()
 #Bot's private token to connect to the discord API
-ENV_TOKEN = str(os.getenv("TOKEN"))
+ENV_TOKEN = str(os.getenv("DISCORD_BOT_API_TOKEN"))
 #Homeland's server UUID; ensures nobody else can use the bot to avoid conflicts if other servers get access to it for whatever reason (as we're not making a universal product)
-ENV_GUILD = str(os.getenv("GUILD"))
+ENV_GUILD = str(os.getenv("DISCORD_GUILD"))
 
 # Namespace variables required to execute command code
 Command_Namespace = {
