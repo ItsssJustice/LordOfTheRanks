@@ -68,16 +68,16 @@ async def on_ready():
 
     #Get guild roles
     print("Getting Guild Roles")
-    Guild_Role_List = await guild_roles.Get(client, guild_id=DISCORD_GUILD)
-    #guild_roles.Display(Guild_Role_List)
+    Guild_Role_List = await discord_data.Roles_Get(client, guild_id=DISCORD_GUILD)
+    discord_data.Roles_Display(Guild_Role_List)
 
     #Get guild members
     print("Getting Guild Members")
-    Guild_Member_List = guild_members.Get(client, guild_id=DISCORD_GUILD);
-    #guild_members.Display(Guild_Member_List)
+    Guild_Member_List = discord_data.Members_Get(client, guild_id=DISCORD_GUILD);
+    discord_data.Members_Display(Guild_Member_List)
 
     #Update guild members in the MySQL Database
-    sql_update.Discord_Member_Update(SQL_Connection, Guild_Member_List)
+    #sql_update.Discord_Member_Update(SQL_Connection, Guild_Member_List)
     
     #Bot ready to perform async actions on demand
     print("Bot Ready!")

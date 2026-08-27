@@ -9,13 +9,13 @@ def SQL_Verify_And_Connect(SQL_Host, SQL_User, SQL_Pass, SQL_Database, SQL_Table
 	  password = SQL_Pass
 	)
 	#Display mysql connection
-	print(f"Connecting to MySQL Database : {SQL_Connection}")
+	print(f"SQL : Connecting to MySQL Database : {SQL_Connection}")
 
 	#Create cursor to move around the database to gather requests
 	SQL_Cursor = SQL_Connection.cursor()
 	#Verify the MySQL Database exists
 	Database_Verify(SQL_Cursor, SQL_Database);
-	print(f"Reconnecting to MySQL Database After Locating Database")
+	print(f"SQL : Reconnecting to MySQL Database After Locating Database")
 	#disconnect from the MySQL database
 	SQL_Connection.disconnect()
 	#re-connect to the MySQL server with the specific database included (to simplify later requests)
@@ -26,7 +26,7 @@ def SQL_Verify_And_Connect(SQL_Host, SQL_User, SQL_Pass, SQL_Database, SQL_Table
 	  database = SQL_Database
 	)
 	#Display mysql connection
-	print(f"Connecting to MySQL Database : {SQL_Connection}")
+	print(f" SQL : Connecting to MySQL Database : {SQL_Connection}")
 	#Create cursor to move around the database to gather requests
 	SQL_Cursor = SQL_Connection.cursor()
 	#Verify all tables exist
