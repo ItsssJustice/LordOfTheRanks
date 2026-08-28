@@ -5,6 +5,63 @@
         "name_global": "VARCHAR(255) NOT NULL",
         "name_display": "VARCHAR(255) NOT NULL",
         "name_nick": "VARCHAR(255) NOT NULL",
-        "discriminator": "INT"
+        "discriminator": "INT",
+        "created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP"
+    },
+
+    "osrs_clan_members": {
+	"player_id": "INT PRIMARY KEY",
+	"current_rsn": "VARCHAR(255) NOT NULL",
+	"clan_rank": "VARCHAR(255) NOT NULL",
+	"join_date": "DATETIME NOT NULL",
+	"leave_date": "DATETIME",
+	"current_member": "BOOLEAN NOT NULL DEFAULT TRUE",
+	"created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
+	"updated_at": "DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+    },
+
+    "discord_osrs_link": {
+	"link_id": "INT PRIMARY KEY AUTO_INCREMENT",
+        "discord_id": "BIGINT",
+        "player_id": "INT NOT NULL",
+        "is_main_account": "BOOLEAN NOT NULL DEFAULT FALSE"
+    },
+
+    "competitions": {
+        "competition_id": "INT PRIMARY KEY",
+        "title": "VARCHAR(255) NOT NULL",
+        "starts_at": "DATETIME NOT NULL",
+        "ends_at": "DATETIME NOT NULL",
+        "metric": "VARCHAR(100) NOT NULL",
+        "points_assigned": "BOOLEAN NOT NULL DEFAULT FALSE",
+        "created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+    },
+
+    "points_classes": {
+	"token_id": "INT PRIMARY KEY AUTO_INCREMENT",
+	"source_description": "VARCHAR(255) NOT NULL",
+	"points_value": "INT NOT NULL"
+    },
+
+    "point_transactions": {
+	"transaction_id": "INT PRIMARY KEY AUTO_INCREMENT",
+	"discord_id": "BIGINT NOT NULL",
+	"token_id": "INT NOT NULL",
+	"assigned_by_discord_id": "BIGINT NULL",
+	"player_id": "INT NOT NULL",
+	"manual_assignment": "BOOLEAN NOT NULL DEFAULT FALSE",
+	"created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP"
+    },
+
+    "promotion_polls": {
+        "poll_id": "INT PRIMARY KEY AUTO_INCREMENT",
+        "discord_id": "BIGINT NOT NULL",
+        "player_id": "INT NOT NULL",
+        "created_by_discord_id": "BIGINT NULL",
+        "vote_passed": "BOOLEAN NULL",
+        "new_rank": "VARCHAR(255) NOT NULL",
+        "created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
+        "closed_at": "DATETIME NULL"
     }
 }
