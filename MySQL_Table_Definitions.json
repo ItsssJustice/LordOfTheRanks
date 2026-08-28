@@ -10,12 +10,12 @@
     },
 
     "osrs_clan_members": {
-	"player_id": "INT PRIMARY KEY",
+	"player_id": "BIGINT PRIMARY KEY",
 	"current_rsn": "VARCHAR(255) NOT NULL",
-	"clan_rank": "VARCHAR(255) NOT NULL",
+	"rank_id": "INT NOT NULL",
 	"join_date": "DATETIME NOT NULL",
 	"leave_date": "DATETIME",
-	"current_member": "BOOLEAN NOT NULL DEFAULT TRUE",
+	"current_member": "BOOLEAN NOT NULL DEFAULT FALSE",
 	"created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
 	"updated_at": "DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
     },
@@ -49,7 +49,7 @@
 	"discord_id": "BIGINT NOT NULL",
 	"token_id": "INT NOT NULL",
 	"assigned_by_discord_id": "BIGINT NULL",
-	"player_id": "INT NOT NULL",
+	"player_id": "BIGINT NOT NULL",
 	"manual_assignment": "BOOLEAN NOT NULL DEFAULT FALSE",
 	"created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP"
     },
@@ -57,11 +57,27 @@
     "promotion_polls": {
         "poll_id": "INT PRIMARY KEY AUTO_INCREMENT",
         "discord_id": "BIGINT NOT NULL",
-        "player_id": "INT NOT NULL",
+        "player_id": "BIGINT NOT NULL",
         "created_by_discord_id": "BIGINT NULL",
         "vote_passed": "BOOLEAN NULL",
-        "new_rank": "VARCHAR(255) NOT NULL",
+        "rank_previous": "INT NOT NULL",
+        "rank_new": "INT NOT NULL",
         "created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
         "closed_at": "DATETIME NULL"
+    },
+
+    "promotion_ranks": {
+        "rank_id": "INT PRIMARY KEY",
+        "rank_name": "VARCHAR(255)",
+        "points_required": "INT",
+        "membership_time_required": "INT",
+        "automatic_promotion": "BOOL DEFAULT FALSE",
+        "rank_id_progression": "INT"
+    },
+
+    "bot_config": {
+    "config_id": "INT PRIMARY KEY AUTO_INCREMENT",
+    "config_item": "VARCHAR(255) NOT NULL",
+    "config_executed": "BOOLEAN DEFAULT FALSE"
     }
 }
