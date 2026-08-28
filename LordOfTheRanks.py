@@ -18,13 +18,17 @@ tree = discord.app_commands.CommandTree(client)
 #Load environment variables from external file
 dotenv.load_dotenv()
 #Bot's private token to connect to the discord API
-ENV_TOKEN = str(os.getenv("DISCORD_BOT_API_TOKEN"))
+DISCORD_TOKEN = str(os.getenv("DISCORD_API_TOKEN"))
 #Homeland's server UUID; ensures nobody else can use the bot to avoid conflicts if other servers get access to it for whatever reason (as we're not making a universal product)
-ENV_GUILD = str(os.getenv("DISCORD_GUILD"))
+DISCORD_GUILD = str(os.getenv("DISCORD_GUILD"))
 #SQL Database connection environment variables
-SQL_Host = str(os.getenv("MYSQL_HOST"))
-SQL_User = str(os.getenv("MYSQL_USER"))
-SQL_Pass = str(os.getenv("MYSQL_PASS"))
+SQL_HOST = str(os.getenv("MYSQL_HOST"))
+SQL_USER = str(os.getenv("MYSQL_USER"))
+SQL_PASS = str(os.getenv("MYSQL_PASS"))
+#WOM connection environment variables
+WOM_USER = str(os.getenv("WOM_USER"))
+WOM_TOKEN = str(os.getenv("WOM_API_TOKEN"))
+WOM_GUILD = str(os.getenv("WOM_GUILD"))
 
 #SQL Database name
 SQL_Database = 'lordoftheranks'
@@ -32,14 +36,14 @@ SQL_Database = 'lordoftheranks'
 SQL_Table_Definitions_Filepath = "MySQL_Table_Definitions.json"
 
 #Connect to the SQL database and verify the database contents and structure are as expected
-SQL_Connection, SQL_Cursor = sql_config.SQL_Verify_And_Connect(SQL_Host, SQL_User, SQL_Pass, SQL_Database, SQL_Table_Definitions_Filepath)
+SQL_Connection, SQL_Cursor = sql_config.SQL_Verify_And_Connect(SQL_HOST, SQL_USER, SQL_PASS, SQL_Database, SQL_Table_Definitions_Filepath)
 
 # Namespace variables required to execute discord command code
 Command_Namespace = {
     "tree": tree,
     "discord": discord,
     "app_commands": discord.app_commands,
-    "ENV_GUILD": ENV_GUILD
+    "DISCORD_GUILD": DISCORD_GUILD
 }
 
 #Execute all slash-command code as submodules to keep body code easy to read
@@ -64,17 +68,20 @@ async def on_ready():
 
     #Get guild roles
     print("Getting Guild Roles")
-    Guild_Role_List = await guild_roles.Get(client, guild_id=ENV_GUILD)
-    guild_roles.Display(Guild_Role_List)
+    Guild_Role_List = await discord_data.Roles_Get(client, guild_id=DISCORD_GUILD)
+    discord_data.Roles_Display(Guild_Role_List)
 
     #Get guild members
     print("Getting Guild Members")
-    Guild_Member_List = guild_members.Get(client, guild_id=ENV_GUILD);
-    guild_members.Display(Guild_Member_List)
+    Guild_Member_List = discord_data.Members_Get(client, guild_id=DISCORD_GUILD);
+    discord_data.Members_Display(Guild_Member_List)
 
+    #Update guild members in the MySQL Database
+    #sql_update.Discord_Member_Update(SQL_Connection, Guild_Member_List)
+    
     #Bot ready to perform async actions on demand
     print("Bot Ready!")
 
 # Connect to discord using the bot's API Token
 print("Connecting bot to discord")
-client.run(ENV_TOKEN)
+client.run(DISCORD_TOKEN)
