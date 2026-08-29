@@ -97,6 +97,10 @@ async def on_ready():
 	#Update guild members in the MySQL Database
 	#sql_update.Discord_Member_Update(SQL_Connection, Guild_Member_List)
 	
+	#Rank votes: re-register open votes' buttons, check the rank ladder against
+	#the server's roles, and start watching for votes whose time is up
+	await poll_setup.On_Ready(client, DISCORD_GUILD)
+
 	#Bot ready to perform async actions on demand
 	print("Bot Ready!")
 
