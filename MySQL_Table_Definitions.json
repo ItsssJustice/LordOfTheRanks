@@ -73,7 +73,6 @@
     "promotion_polls": {
         "poll_id": "INT PRIMARY KEY AUTO_INCREMENT",
         "discord_id": "BIGINT NOT NULL",
-        "player_id": "BIGINT NOT NULL",
         "created_by_discord_id": "BIGINT NULL",
         "vote_passed": "BOOLEAN DEFAULT FALSE",
         "vote_actioned": "BOOLEAN DEFAULT FALSE",
