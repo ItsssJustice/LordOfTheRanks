@@ -52,7 +52,7 @@
         "points_id": "INT PRIMARY KEY AUTO_INCREMENT",
         "source_id": "INT NOT NULL",
         "contribution_level": "INT NOT NULL DEFAULT 0",
-        "points": "INT NOT NULL",
+        "points": "INT NOT NULL"
     },
 
     "points_tokens": {
@@ -95,7 +95,7 @@
     "discord_promotion_roles": {
         "link_id": "INT PRIMARY KEY AUTO_INCREMENT",
         "promotion_rank_id": "INT",
-        "discord_role_id": "BIGINT",
+        "discord_role_id": "BIGINT"
     },
 
     "bot_config": {
