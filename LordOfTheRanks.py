@@ -18,6 +18,7 @@ tree = discord.app_commands.CommandTree(client)
 dotenv.load_dotenv()
 #Bot's private token to connect to the discord API
 DISCORD_TOKEN = str(os.getenv("DISCORD_API_TOKEN"))
+DISCORD_USER = str(os.getenv("DISCORD_USER"))
 #Homeland's server UUID; ensures nobody else can use the bot to avoid conflicts if other servers get access to it for whatever reason (as we're not making a universal product)
 DISCORD_GUILD = str(os.getenv("DISCORD_GUILD"))
 #SQL Database connection environment variables
@@ -44,6 +45,8 @@ Command_Namespace = {
 	"discord": discord,
 	"app_commands": discord.app_commands,
 	"DISCORD_GUILD": DISCORD_GUILD,
+	"DISCORD_USER": DISCORD_USER,
+	"SQL_Connection": SQL_Connection,
 	"SQL_Cursor": SQL_Cursor
 }
 

@@ -13,6 +13,7 @@
 | Field | Purpose |
 |-------|---------|
 | DISCORD_API_TOKEN | discord API bot token |
+| DISCORD_USER | discord ID for the bot |
 | DISCORD_GUILD | discord ID for the specific server |
 | WOM_USER | Discord name of the user connecting with the Wise Old Man API |
 | WOM_API_TOKEN | Wise Old Man API bot token |

@@ -106,18 +106,19 @@
 			{ "config_id": 1, "config_name": "initial_configuration_complete", "config_executed": 0 },
 			{ "config_id": 2, "config_name": "startup_action_time", "config_executed": 0 },
 			{ "config_id": 3, "config_name": "scheduled_executions_per_month", "config_executed": 0 },
-			{ "config_id": 4, "config_name": "action_time_wom", "config_executed": 0 },
-			{ "config_id": 5, "config_name": "action_time_discord", "config_executed": 0 },
-			{ "config_id": 6, "config_name": "action_time_sql", "config_executed": 0 },
-			{ "config_id": 7, "config_name": "action_time_scheduled_points_added", "config_executed": 0 },
-			{ "config_id": 8, "config_name": "action_time_scheduled_promotion_votes_created", "config_executed": 0 },
-			{ "config_id": 9, "config_name": "action_time_scheduled_promotion_votes_actioned", "config_executed": 0 },
-			{ "config_id": 10, "config_name": "winner_botw", "config_executed": 0 },
-			{ "config_id": 11, "config_name": "winner_sotw", "config_executed": 0 },
-			{ "config_id": 12, "config_name": "winner_cluehunt", "config_executed": 0 },
-			{ "config_id": 13, "config_name": "rank_botw", "config_executed": 1086740877529063555 },
-			{ "config_id": 14, "config_name": "rank_sotw", "config_executed": 991477450737459230 },
-			{ "config_id": 15, "config_name": "rank_cluehunt", "config_executed": 1116508676413468763 }
+			{ "config_id": 4, "config_name": "token_id_read_only_days", "config_executed": 14 },
+			{ "config_id": 5, "config_name": "action_time_wom", "config_executed": 0 },
+			{ "config_id": 6, "config_name": "action_time_discord", "config_executed": 0 },
+			{ "config_id": 7, "config_name": "action_time_sql", "config_executed": 0 },
+			{ "config_id": 8, "config_name": "action_time_scheduled_points_added", "config_executed": 0 },
+			{ "config_id": 9, "config_name": "action_time_scheduled_promotion_votes_created", "config_executed": 0 },
+			{ "config_id": 10, "config_name": "action_time_scheduled_promotion_votes_actioned", "config_executed": 0 },
+			{ "config_id": 11, "config_name": "winner_botw", "config_executed": 0 },
+			{ "config_id": 12, "config_name": "winner_sotw", "config_executed": 0 },
+			{ "config_id": 13, "config_name": "winner_cluehunt", "config_executed": 0 },
+			{ "config_id": 14, "config_name": "rank_botw", "config_executed": 1086740877529063555 },
+			{ "config_id": 15, "config_name": "rank_sotw", "config_executed": 991477450737459230 },
+			{ "config_id": 16, "config_name": "rank_cluehunt", "config_executed": 1116508676413468763 }
 		]
 	}
 }

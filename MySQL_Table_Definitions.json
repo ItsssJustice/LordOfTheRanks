@@ -60,10 +60,12 @@
         "source_id": "INT NOT NULL",
         "created_by_discord_id": "BIGINT NOT NULL",
         "manual_assignment": "BOOLEAN NOT NULL DEFAULT FALSE",
+        "token_enabled": "BOOLEAN DEFAULT TRUE",
+        "token_disabled_by_discord_id": "BIGINT DEFAULT 0",
         "created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP"
     },
 
-    "point_transactions": {
+    "points_transactions": {
     	"transaction_id": "INT PRIMARY KEY AUTO_INCREMENT",
         "token_id": "INT NOT NULL",
     	"discord_id": "BIGINT NOT NULL",
