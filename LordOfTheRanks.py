@@ -34,9 +34,10 @@ WOM_GUILD = str(os.getenv("WOM_GUILD"))
 SQL_Database = 'lordoftheranks'
 #SQL Database definition
 SQL_Table_Definitions_Filepath = "MySQL_Table_Definitions.json"
+SQL_Table_Default_Data_Filepath = "MySQL_Table_Default_Data.json"
 
 #Connect to the SQL database and verify the database contents and structure are as expected
-SQL_Connection, SQL_Cursor = sql_config.SQL_Verify_And_Connect(SQL_HOST, SQL_USER, SQL_PASS, SQL_Database, SQL_Table_Definitions_Filepath)
+SQL_Connection, SQL_Cursor = sql_config.SQL_Verify_And_Connect(SQL_HOST, SQL_USER, SQL_PASS, SQL_Database, SQL_Table_Definitions_Filepath, SQL_Table_Default_Data_Filepath)
 
 # Namespace variables required to execute discord command code
 Command_Namespace = {
@@ -74,7 +75,7 @@ async def on_ready():
     #Get guild members
     print("Getting Guild Members")
     Guild_Member_List = discord_data.Members_Get(client, guild_id=DISCORD_GUILD);
-    discord_data.Members_Display(Guild_Member_List)
+    #discord_data.Members_Display(Guild_Member_List)
 
     #Update guild members in the MySQL Database
     #sql_update.Discord_Member_Update(SQL_Connection, Guild_Member_List)

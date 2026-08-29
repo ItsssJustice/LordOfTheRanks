@@ -1,6 +1,6 @@
 #Initial configuration of the MySQL database
 #Verify the database structure and connect to the MySQL database
-def SQL_Verify_And_Connect(SQL_Host, SQL_User, SQL_Pass, SQL_Database, SQL_Table_Definitions_Filepath):
+def SQL_Verify_And_Connect(SQL_Host, SQL_User, SQL_Pass, SQL_Database, SQL_Table_Definitions_Filepath, SQL_Table_Default_Data_Filepath):
 	#Connect to the MySQL server
 	import mysql.connector
 	SQL_Connection = mysql.connector.connect(
@@ -32,6 +32,8 @@ def SQL_Verify_And_Connect(SQL_Host, SQL_User, SQL_Pass, SQL_Database, SQL_Table
 	#Verify all tables exist
 	try:
 	    Table_Verify(SQL_Cursor, SQL_Table_Definitions_Filepath)
+	    if SQL_Table_Default_Data_Filepath:
+	        Table_Default_Data_Verify(SQL_Cursor, SQL_Table_Default_Data_Filepath)
 	    SQL_Connection.commit()
 	    print("SQL : Schema sync complete.")
 	except mysql.connector.Error as err:
@@ -65,7 +67,7 @@ def Database_Get_List(SQL_Cursor):
 
 #Verify all tables in the selected database exists
 def Table_Verify(SQL_Cursor, Table_Definitions_Filepath):
-	Table_Definitions = Database_Table_Definitions_Get(Table_Definitions_Filepath)
+	Table_Definitions = Database_Table_JSON_Read(Table_Definitions_Filepath)
 	existing_tables = Table_Get_List(SQL_Cursor)
 	for table_name, columns in Table_Definitions.items():
 		print(f"SQL : Verifying Table `{table_name}` Exists")
@@ -107,8 +109,35 @@ def Table_Column_Add(SQL_Cursor, table_name, columns, existing_columns):
 			print(f"SQL : Adding missing column `{col}` to `{table_name}`...")
 			SQL_Cursor.execute(sql)
 
+#Verify all default data rows exist in their tables, inserting any that are missing
+def Table_Default_Data_Verify(SQL_Cursor, Default_Data_Filepath):
+	Default_Data = Database_Table_JSON_Read(Default_Data_Filepath)
+	for table_name, table_data in Default_Data.items():
+		Key_Column = table_data["key"]
+		Rows = table_data["rows"]
+		print(f"SQL : Verifying Default Data For Table `{table_name}`")
+		for row in Rows:
+			if Table_Default_Data_Row_Exists(SQL_Cursor, table_name, Key_Column, row):
+				print(f"SQL : Default Row `{row.get(Key_Column)}` Found In `{table_name}`")
+			else:
+				print(f"SQL : Default Row `{row.get(Key_Column)}` Missing In `{table_name}` — Inserting")
+				Table_Default_Data_Row_Insert(SQL_Cursor, table_name, row)
+
+#Check whether a default data row already exists, matched by the table's key column
+def Table_Default_Data_Row_Exists(SQL_Cursor, table_name, Key_Column, row):
+	sql = f"SELECT 1 FROM `{table_name}` WHERE `{Key_Column}` = %s LIMIT 1"
+	SQL_Cursor.execute(sql, (row[Key_Column],))
+	return SQL_Cursor.fetchone() is not None
+
+#Insert a single default data row into the given table
+def Table_Default_Data_Row_Insert(SQL_Cursor, table_name, row):
+	columns = ", ".join(f"`{col}`" for col in row.keys())
+	placeholders = ", ".join(["%s"] * len(row))
+	sql = f"INSERT INTO `{table_name}` ({columns}) VALUES ({placeholders})"
+	SQL_Cursor.execute(sql, tuple(row.values()))
+
 #Load table definitions from JSON schema
-def Database_Table_Definitions_Get(Table_Definitions_Filepath):
+def Database_Table_JSON_Read(Table_Definitions_Filepath):
 	import json
 	try:
 		with open(Table_Definitions_Filepath, "r") as File:
