@@ -96,7 +96,6 @@
         "link_id": "INT PRIMARY KEY AUTO_INCREMENT",
         "promotion_rank_id": "INT",
         "discord_role_id": "BIGINT",
-        "discord_role_name": "VARCHAR(255)"
     },
 
     "bot_config": {
