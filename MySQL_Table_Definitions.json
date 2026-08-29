@@ -51,8 +51,8 @@
     "points_values": {
         "points_id": "INT PRIMARY KEY AUTO_INCREMENT",
         "source_id": "INT NOT NULL",
+        "contribution_level": "INT NOT NULL DEFAULT 0",
         "points": "INT NOT NULL",
-        "competition_position": "INT NOT NULL DEFAULT 0"
     },
 
     "points_tokens": {
