@@ -1,11 +1,13 @@
 # Import core libraries
 import os
 import importlib
+import pkgutil
 import dotenv
 import json
 import discord
 import mysql.connector
 # Load all LordOfTheRanks functions
+import Functions
 from Functions import *
 
 ## Set required discord bot environment flags
@@ -17,18 +19,19 @@ tree = discord.app_commands.CommandTree(client)
 #Load environment variables from external file
 dotenv.load_dotenv()
 #Bot's private token to connect to the discord API
-DISCORD_TOKEN = str(os.getenv("DISCORD_API_TOKEN"))
-DISCORD_USER = str(os.getenv("DISCORD_USER"))
+DISCORD_TOKEN = bot_config.env_get("DISCORD_API_TOKEN")
+#Bot's own discord ID (allows for self-identification)
+DISCORD_USER = bot_config.env_get("DISCORD_USER")
 #Homeland's server UUID; ensures nobody else can use the bot to avoid conflicts if other servers get access to it for whatever reason (as we're not making a universal product)
-DISCORD_GUILD = str(os.getenv("DISCORD_GUILD"))
+DISCORD_GUILD = bot_config.env_get("DISCORD_GUILD")
 #SQL Database connection environment variables
-SQL_HOST = str(os.getenv("MYSQL_HOST"))
-SQL_USER = str(os.getenv("MYSQL_USER"))
-SQL_PASS = str(os.getenv("MYSQL_PASS"))
+SQL_HOST = bot_config.env_get("MYSQL_HOST")
+SQL_USER = bot_config.env_get("MYSQL_USER")
+SQL_PASS = bot_config.env_get("MYSQL_PASS")
 #WOM connection environment variables
-WOM_USER = str(os.getenv("WOM_USER"))
-WOM_TOKEN = str(os.getenv("WOM_API_TOKEN"))
-WOM_GUILD = str(os.getenv("WOM_GUILD"))
+WOM_USER = bot_config.env_get("WOM_USER")
+WOM_TOKEN = bot_config.env_get("WOM_API_TOKEN")
+WOM_GUILD = bot_config.env_get("WOM_GUILD")
 
 #SQL Database name
 SQL_Database = 'lordoftheranks'
@@ -50,10 +53,16 @@ Command_Namespace = {
 	"SQL_Cursor": SQL_Cursor
 }
 
+# Expose every submodule imported via Functions/__init__.py to the exec'd command files
+print("Looking for Functions files located in '% s':" % Functions)
+for _, module_name, _ in pkgutil.iter_modules(Functions.__path__):
+	module = importlib.import_module(f"Functions.{module_name}")
+	Command_Namespace[module_name] = module
+
 #Execute all slash-command code as submodules to keep body code easy to read
-Directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Commands")
-Directory_Contents = os.scandir(Directory)
-print("Looking for Slash-Command files located in '% s':" % Directory)
+Directory_Commands = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Commands")
+Directory_Contents = os.scandir(Directory_Commands)
+print("Looking for Slash-Command files located in '% s':" % Directory_Commands)
 for Command_File in Directory_Contents:
 	if Command_File.is_file() and Command_File.name.endswith(".py"):
 		print("Executing module: " + Command_File.name)
