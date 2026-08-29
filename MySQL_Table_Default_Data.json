@@ -10,14 +10,15 @@
 	"points_sources": {
 		"key": "source_id",
 		"rows": [
-			{ "source_id": 1, "source_description": "Other" },
-			{ "source_id": 2, "source_description": "Clan Membership" },
-			{ "source_id": 3, "source_description": "Clan Contribution" },
-			{ "source_id": 4, "source_description": "Member Appriciation" },
-			{ "source_id": 5, "source_description": "Staff Acknowledgement" },
-			{ "source_id": 6, "source_description": "Mentoring" },
-			{ "source_id": 7, "source_description": "Event Participation" },
-			{ "source_id": 8, "source_description": "Event Hosting" }
+			{ "source_id": 1, "source_description": "Bot Setup Initial Points" },
+			{ "source_id": 2, "source_description": "Other" },
+			{ "source_id": 3, "source_description": "Clan Membership" },
+			{ "source_id": 4, "source_description": "Clan Contribution" },
+			{ "source_id": 5, "source_description": "Member Appriciation" },
+			{ "source_id": 6, "source_description": "Staff Acknowledgement" },
+			{ "source_id": 7, "source_description": "Mentoring" },
+			{ "source_id": 8, "source_description": "Event Participation" },
+			{ "source_id": 9, "source_description": "Event Hosting" }
 		]
 	},
 
