@@ -67,7 +67,6 @@
     	"transaction_id": "INT PRIMARY KEY AUTO_INCREMENT",
     	"discord_id": "BIGINT NOT NULL",
     	"token_id": "INT NOT NULL",
-    	"player_id": "BIGINT NOT NULL",
         "points": "INT NOT NULL"
     },
 
