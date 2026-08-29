@@ -65,8 +65,8 @@
 
     "point_transactions": {
     	"transaction_id": "INT PRIMARY KEY AUTO_INCREMENT",
+        "token_id": "INT NOT NULL",
     	"discord_id": "BIGINT NOT NULL",
-    	"token_id": "INT NOT NULL",
         "points": "INT NOT NULL"
     },
 
