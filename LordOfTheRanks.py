@@ -1,4 +1,3 @@
-
 # Import core libraries
 import os
 import importlib
@@ -41,10 +40,11 @@ SQL_Connection, SQL_Cursor = sql_config.SQL_Verify_And_Connect(SQL_HOST, SQL_USE
 
 # Namespace variables required to execute discord command code
 Command_Namespace = {
-    "tree": tree,
-    "discord": discord,
-    "app_commands": discord.app_commands,
-    "DISCORD_GUILD": DISCORD_GUILD
+	"tree": tree,
+	"discord": discord,
+	"app_commands": discord.app_commands,
+	"DISCORD_GUILD": DISCORD_GUILD,
+	"SQL_Cursor": SQL_Cursor
 }
 
 #Execute all slash-command code as submodules to keep body code easy to read
@@ -52,36 +52,41 @@ Directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Commands"
 Directory_Contents = os.scandir(Directory)
 print("Looking for Slash-Command files located in '% s':" % Directory)
 for Command_File in Directory_Contents:
-    if Command_File.is_file() and Command_File.name.endswith(".py"):
-        print("Executing module: " + Command_File.name)
-        with open(Command_File.path, "r", encoding="utf-8") as f:
-            Command_Module_Code = f.read()
-        exec(Command_Module_Code, Command_Namespace)
+	if Command_File.is_file() and Command_File.name.endswith(".py"):
+		print("Executing module: " + Command_File.name)
+		with open(Command_File.path, "r", encoding="utf-8") as f:
+			Command_Module_Code = f.read()
+		exec(Command_Module_Code, Command_Namespace)
 
 # Display ready message
 @client.event
 async def on_ready():
-    print('We have logged in as {0.user}'.format(client))
+	print('We have logged in as {0.user}'.format(client))
 
-    #Push command tree to users (not homeland for now)
-    print("Syncing Command Tree")
-    await tree.sync(guild=discord.Object(id=849780703502532628))
+	#Push command tree to users (not homeland for now)
+	print("Syncing Command Tree")
+	existing = tree.get_commands(guild=discord.Object(id=DISCORD_GUILD))
+	print(f"Locally registered before sync: {[c.name for c in existing]}")
+	try:
+		synced = await tree.sync(guild=discord.Object(id=DISCORD_GUILD))
+		print(f"Synced {len(synced)} command(s): {[c.name for c in synced]}")
+	except Exception as e:
+		print(f"Sync failed: {e}")
+	#Get guild roles
+	#print("Getting Guild Roles")
+	#Guild_Role_List = await discord_data.Roles_Get(client, guild_id=DISCORD_GUILD)
+	#discord_data.Roles_Display(Guild_Role_List)
 
-    #Get guild roles
-    print("Getting Guild Roles")
-    Guild_Role_List = await discord_data.Roles_Get(client, guild_id=DISCORD_GUILD)
-    discord_data.Roles_Display(Guild_Role_List)
+	#Get guild members
+	#print("Getting Guild Members")
+	#Guild_Member_List = discord_data.Members_Get(client, guild_id=DISCORD_GUILD);
+	#discord_data.Members_Display(Guild_Member_List)
 
-    #Get guild members
-    print("Getting Guild Members")
-    Guild_Member_List = discord_data.Members_Get(client, guild_id=DISCORD_GUILD);
-    #discord_data.Members_Display(Guild_Member_List)
-
-    #Update guild members in the MySQL Database
-    #sql_update.Discord_Member_Update(SQL_Connection, Guild_Member_List)
-    
-    #Bot ready to perform async actions on demand
-    print("Bot Ready!")
+	#Update guild members in the MySQL Database
+	#sql_update.Discord_Member_Update(SQL_Connection, Guild_Member_List)
+	
+	#Bot ready to perform async actions on demand
+	print("Bot Ready!")
 
 # Connect to discord using the bot's API Token
 print("Connecting bot to discord")
