@@ -5,6 +5,10 @@ Points_Sources = [Source for Source in Points_Sources if Source["source_id"] != 
 
 #Management of points adjustment for a single, or multiple discord members via the generation of tokens
 async def Points_Adjust(interaction: discord.Interaction, member: discord.Member, contribution: app_commands.Choice[int], level: app_commands.Choice[int], other_points: int, addition: bool) -> None:
+	#Verify user is a moderator to change another player's points
+	if not sql_update.Discord_Moderator_Command_Permitted(SQL_Cursor, interaction.user.id, 1):
+		await bot_config.Command_Permissions_Issue(interaction)
+		return None
 	from Functions import bot_config
 	#Variables accessible
 	awarded_by = interaction.user.id
@@ -14,19 +18,55 @@ async def Points_Adjust(interaction: discord.Interaction, member: discord.Member
 	level_name = level.name
 	action_word = "Awarded" if addition > 0 else "Deducted"
 	manual_assignment = False if awarded_by == bot_config.env_get("DISCORD_USER") else True
-	#Generate points token
-	Token_ID = sql_points.Points_Token_Create(SQL_Connection, SQL_Cursor, source_id, awarded_by, manual_assignment)
 	#Determine points value
 	Points_Value = sql_points.Points_Get_Value(SQL_Cursor, source_id, level_id, addition, other_points)
-	Transactions = sql_points.Points_Transaction_Insert(SQL_Connection, SQL_Cursor, Token_ID, member, Points_Value)
+	if Points_Value > 0:
+		#Generate points token
+		Token_ID = sql_points.Points_Token_Create(SQL_Connection, SQL_Cursor, source_id, awarded_by, manual_assignment)
+		Transactions = sql_points.Points_Transaction_Insert(SQL_Connection, SQL_Cursor, Token_ID, member, Points_Value)
+		await interaction.response.send_message(
+			f"**Points {action_word}**\n"
+			f"Token ID = {Token_ID}, Transactions = {Transactions}\n"
+			f"User: {member.mention}\n"
+			f"Points: {Points_Value}\n"
+			f"Source: {source_name} ({source_id})\n"
+			f"Tier: {level_name} ({level_id})\n"
+			f"{action_word} by: <@{awarded_by}>"
+		)
+	else:
+		await interaction.response.send_message("Could not create a valid points token, please check the command input", ephemeral=True)
+		return
+
+#View a user's points
+async def Points_View(interaction: discord.Interaction, member: discord.member = None, subtotals_to_display: int = 0):
+	#Assert that if the discord id is blank, to use the current user
+	if member is None:
+		member = interaction.user
+	#Allow a user to view their own points
+	if interaction.user.id != member.id:
+		#Verify user is a moderator to view another player's points
+		if not sql_update.Discord_Moderator_Command_Permitted(SQL_Cursor, interaction.user.id, 1):
+			await bot_config.Command_Permissions_Issue(interaction)
+			return None
+	Points = await sql_points.Points_Get_User_Total(SQL_Connection, SQL_Cursor, member.id)
+	if Points is None:
+		await interaction.response.send_message("Could not display points totals, please check the command input", ephemeral=True)
+		return
+	#Sort subtotals
+	subtotals = sorted(Points["subtotals"], key=lambda subtotal: subtotal["points"], reverse=True)
+	if subtotals_to_display > 0:
+		#ensure subtotals to display isn't larger than the number of subtotals available
+		subtotals_to_display = min(subtotals_to_display, len(subtotals))
+		subtotals = subtotals[:subtotals_to_display]
+	#Create list of subtotals
+	source_lines = "\n".join(
+		f"{subtotal['source_description']}: {subtotal['points']}"
+		for subtotal in subtotals
+	)
 	await interaction.response.send_message(
-		f"**Points {action_word}**\n"
-		f"Token ID = {Token_ID}, Transactions = {Transactions}\n"
-		f"User: {member.mention}\n"
-		f"Points: {Points_Value}\n"
-		f"Source: {source_name} ({source_id})\n"
-		f"Tier: {level_name} ({level_id})\n"
-		f"{action_word} by: <@{awarded_by}>"
+		f"**Points for {member.mention}** (`{member.id}`)\n"
+		f"Total Points: {Points['total']}\n\n"
+		f"{source_lines}", ephemeral=True,
 	)
 
 # Points subcommand group; appears in Discord as "/points <subcommand>"
@@ -66,7 +106,13 @@ async def points_add(interaction: discord.Interaction, member: discord.Member, c
 async def points_subtract(interaction: discord.Interaction, member: discord.Member, contribution: app_commands.Choice[int], level: app_commands.Choice[int], other_points: int = 0) -> None:
 	await Points_Adjust(interaction, member, contribution, level, other_points, False)
 
-#Command for disabling points
+#Command for viewing points for a user
+@Points_Group.command(name="view", description="View points for a single discord member")
+@app_commands.describe(member="The Discord user inspected to view their points")
+async def points_view(interaction: discord.Interaction, member: discord.Member = None, subtotals_display: int = 3) -> None:
+	await Points_View(interaction, member, subtotals_display)
+
+#Command for enabling/disabling points
 @Points_Group.command(name="token_toggle_enable", description="Disable or enable all transactions relating to a specific transaction token id")
 @app_commands.describe(token_id="The token ID relating to the points transaction being disabled or enabled", enabled="If enabling or disabling all transactions relating to this token id")
 @app_commands.choices(
@@ -76,6 +122,10 @@ async def points_subtract(interaction: discord.Interaction, member: discord.Memb
 	],
 )
 async def token_toggle_enable(interaction: discord.Interaction, enabled: app_commands.Choice[int], token_id: int) -> None:
+	#Verify user is a moderator to enable/disable points tokens
+	if not sql_update.Discord_Moderator_Command_Permitted(SQL_Cursor, interaction.user.id, 1):
+		await bot_config.Command_Permissions_Issue(interaction)
+		return None
 	author_discord_id = interaction.user.id
 	enabled_id = enabled.value
 	enabled_name = enabled.name

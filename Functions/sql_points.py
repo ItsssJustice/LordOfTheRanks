@@ -62,7 +62,7 @@ def Points_Token_Enabled_Toggle(SQL_Connection, SQL_Cursor, author_discord_id, t
 #SQL Query for obtaining the points value for a given token
 def Points_Get_Value(SQL_Cursor, source_id, level_id, addition, other_points: int = 0):
 	#Use custom points value, or standard tables
-	if(source_id == 2):
+	if source_id == 2:
 		Value = other_points
 	else:
 		sql = "SELECT points FROM points_values WHERE source_id=%s AND contribution_level=%s"
@@ -77,3 +77,26 @@ def Points_Get_Value(SQL_Cursor, source_id, level_id, addition, other_points: in
 	if addition == 0:
 		Value = -Value
 	return Value
+
+#SQL Query for obtaining a user's points
+async def Points_Get_User_Total(SQL_Connection, SQL_Cursor, discord_id: int = 0):
+	if discord_id == 0:
+		return None
+	else:
+		sql = "SELECT src.source_id, src.source_description, COALESCE(SUM(pt.points), 0) AS subtotal FROM points_sources AS src LEFT JOIN points_tokens AS tok ON tok.source_id = src.source_id AND tok.token_enabled = TRUE LEFT JOIN points_transactions AS pt ON pt.token_id = tok.token_id AND pt.discord_id = %s GROUP BY src.source_id, src.source_description ORDER BY subtotal"
+		SQL_Cursor.execute(sql, (discord_id,))
+		rows = SQL_Cursor.fetchall()
+		subtotals = [
+			{
+				"source_id": source_id,
+				"source_description": source_description,
+				"points": subtotal
+			}
+			for source_id, source_description, subtotal in rows
+		]
+		#Calculate total points
+		total = sum(subtotal["points"] for subtotal in subtotals)
+		return {
+			"total": total,
+			"subtotals": subtotals
+		}

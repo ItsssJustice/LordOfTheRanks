@@ -2,7 +2,10 @@
 	"discord_roles": {
 		"key": "discord_role_id",
 		"rows": [
-			{ "discord_role_id": 0, "discord_role_name": "not in clan"}
+			{ "discord_role_id": 0, "discord_role_name": "not in clan", "discord_moderator_level": 0 },
+			{ "discord_role_id": 990043513657884682, "discord_role_name": "Moderator", "discord_moderator_level": 1 },
+			{ "discord_role_id": 989662722847309841, "discord_role_name": "Admin", "discord_moderator_level": 2 },
+			{ "discord_role_id": 992558926388281426, "discord_role_name": "Key", "discord_moderator_level": 3 }
 		]
 	},
 

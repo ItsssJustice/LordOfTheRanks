@@ -5,13 +5,15 @@
         "name_global": "VARCHAR(255) NOT NULL",
         "name_display": "VARCHAR(255) NOT NULL",
         "name_nick": "VARCHAR(255) NOT NULL",
+        "promotion_rank_id": "SMALLINT DEFAULT 0",
         "discriminator": "INT",
         "created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP"
     },
 
     "discord_roles": {
         "discord_role_id": "BIGINT PRIMARY KEY",
-        "discord_role_name": "VARCHAR(255)"
+        "discord_role_name": "VARCHAR(255)",
+        "discord_moderator_level": "SMALLINT DEFAULT 0"
     },
 
     "osrs_clan_members": {
@@ -44,19 +46,19 @@
     },
 
     "points_sources": {
-        "source_id": "INT PRIMARY KEY AUTO_INCREMENT",
+        "source_id": "SMALLINT PRIMARY KEY AUTO_INCREMENT",
         "source_description": "VARCHAR(255)"
     },
 
     "points_values": {
-        "points_id": "INT PRIMARY KEY AUTO_INCREMENT",
-        "source_id": "INT NOT NULL",
-        "contribution_level": "INT NOT NULL DEFAULT 0",
-        "points": "INT NOT NULL"
+        "points_id": "BIGINT PRIMARY KEY AUTO_INCREMENT",
+        "source_id": "SMALLINT NOT NULL",
+        "contribution_level": "SMALLINT NOT NULL DEFAULT 0",
+        "points": "SMALLINT NOT NULL"
     },
 
     "points_tokens": {
-        "token_id": "INT PRIMARY KEY AUTO_INCREMENT",
+        "token_id": "BIGINT PRIMARY KEY AUTO_INCREMENT",
         "source_id": "INT NOT NULL",
         "created_by_discord_id": "BIGINT NOT NULL",
         "manual_assignment": "BOOLEAN NOT NULL DEFAULT FALSE",
@@ -67,7 +69,7 @@
 
     "points_transactions": {
     	"transaction_id": "INT PRIMARY KEY AUTO_INCREMENT",
-        "token_id": "INT NOT NULL",
+        "token_id": "BIGINT NOT NULL",
     	"discord_id": "BIGINT NOT NULL",
         "points": "INT NOT NULL"
     },
@@ -78,24 +80,24 @@
         "created_by_discord_id": "BIGINT NULL",
         "vote_passed": "BOOLEAN DEFAULT FALSE",
         "vote_actioned": "BOOLEAN DEFAULT FALSE",
-        "rank_previous": "INT NOT NULL",
-        "rank_new": "INT NOT NULL",
+        "rank_previous": "SMALLINT NOT NULL",
+        "rank_new": "SMALLINT NOT NULL",
         "created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
         "closed_at": "DATETIME NULL"
     },
 
     "discord_promotion_ranks": {
-        "promotion_rank_id": "INT PRIMARY KEY",
+        "promotion_rank_id": "SMALLINT PRIMARY KEY",
         "discord_role_id": "BIGINT NOT NULL",
-        "points_required": "INT",
-        "membership_time_required": "INT",
+        "points_required": "SMALLINT",
+        "membership_time_required": "SMALLINT",
         "automatic_promotion": "BOOL DEFAULT FALSE",
-        "promotion_rank_id_progression": "INT"
+        "promotion_rank_id_progression": "SMALLINT"
     },
 
     "discord_promotion_roles": {
         "link_id": "INT PRIMARY KEY AUTO_INCREMENT",
-        "promotion_rank_id": "INT",
+        "promotion_rank_id": "SMALLINT",
         "discord_role_id": "BIGINT"
     },
 
