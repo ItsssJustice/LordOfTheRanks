@@ -60,7 +60,7 @@ def Points_Token_Enabled_Toggle(SQL_Connection, SQL_Cursor, author_discord_id, t
 	return True
 
 #SQL Query for obtaining the points value for a given token
-def Points_Get_Value(SQL_Cursor, source_id, level_id, addition, other_points: int = 0):
+def Points_Get_Value(SQL_Cursor, source_id, level_id, addition: int = 1, other_points: int = 0):
 	#Use custom points value, or standard tables
 	if source_id == 2:
 		Value = other_points
@@ -69,7 +69,7 @@ def Points_Get_Value(SQL_Cursor, source_id, level_id, addition, other_points: in
 		SQL_Cursor.execute(sql, (source_id, level_id))
 		row = SQL_Cursor.fetchone()
 		if row is None:
-			return None
+			return 0
 		else:
 			Value = row[0]
 	#Ensure that negative values are handled

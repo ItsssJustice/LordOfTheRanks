@@ -9,7 +9,6 @@ async def Points_Adjust(interaction: discord.Interaction, member: discord.Member
 	if not sql_update.Discord_Moderator_Command_Permitted(SQL_Cursor, interaction.user.id, 1):
 		await bot_config.Command_Permissions_Issue(interaction)
 		return None
-	from Functions import bot_config
 	#Variables accessible
 	awarded_by = interaction.user.id
 	source_id = contribution.value
