@@ -50,7 +50,10 @@ Command_Namespace = {
 	"DISCORD_GUILD": DISCORD_GUILD,
 	"DISCORD_USER": DISCORD_USER,
 	"SQL_Connection": SQL_Connection,
-	"SQL_Cursor": SQL_Cursor
+	"SQL_Cursor": SQL_Cursor,
+	"WOM_USER": WOM_USER,
+	"WOM_TOKEN": WOM_TOKEN,
+	"WOM_GUILD": WOM_GUILD
 }
 
 # Expose every submodule imported via Functions/__init__.py to the exec'd command files

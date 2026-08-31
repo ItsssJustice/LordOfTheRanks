@@ -78,13 +78,13 @@ async def Disconnect(WOM_Client):
 	# Close the client
 	await WOM_Client.close()
 
-async def Members_Get(WOM_USER, WOM_TOKEN, WOM_GROUP_ID):
-	print(f"WOM : Retriving members for group {WOM_GROUP_ID}")
+async def Members_Get(WOM_USER, WOM_TOKEN, WOM_GUILD):
+	print(f"WOM : Retriving members for group {WOM_GUILD}")
 	[WOM_Client, Connected] = await Connect(WOM_USER, WOM_TOKEN)
 	Member_Data = {}
 	try:
 		if Connected:
-			result = await WOM_Client.groups.get_details(WOM_GROUP_ID)
+			result = await WOM_Client.groups.get_details(WOM_GUILD)
 			if not result.is_ok:
 				raise Exception(f"Failed to retrieve group details: {result}")
 			# original data here
@@ -112,6 +112,13 @@ async def Members_Get(WOM_USER, WOM_TOKEN, WOM_GROUP_ID):
 
 def Members_Display(Member_Data):
 	group = Member_Data["groupData"]
+	if not group:
+		print("No group found.")
+		return
+	group_members = group["memberships"]
+	if not group_members:
+		print("No group members found.")
+		return
 	print()
 	print(f"Group:        {group['name']}")
 	print(f"ID:           {group['id']}")
@@ -124,7 +131,7 @@ def Members_Display(Member_Data):
 		f"{'Joined':<30}"
 	)
 	print("-" * 82)
-	for membership in group["memberships"]:
+	for membership in group_members:
 		print(
 			f"{membership['player_id']:<12}"
 			f"{membership['display_name']:<25}"
@@ -132,13 +139,13 @@ def Members_Display(Member_Data):
 			f"{membership['created_at']:<30}"
 		)
 
-async def Namechanges_Get(WOM_USER, WOM_TOKEN, WOM_GROUP_ID, LIMIT):
-	print(f"WOM : Retriving name changes for group {WOM_GROUP_ID}")
+async def Namechanges_Get(WOM_USER, WOM_TOKEN, WOM_GUILD, LIMIT):
+	print(f"WOM : Retriving name changes for group {WOM_GUILD}")
 	[WOM_Client, Connected] = await Connect(WOM_USER, WOM_TOKEN)
 	Namechange_Data = {}
 	try:
 		if Connected:
-			result = await WOM_Client.groups.get_name_changes(WOM_GROUP_ID, limit=LIMIT)
+			result = await WOM_Client.groups.get_name_changes(WOM_GUILD, limit=LIMIT)
 			if not result.is_ok:
 				raise Exception(f"Failed to retrieve group details: {result}")
 			# original data here
@@ -162,6 +169,9 @@ async def Namechanges_Get(WOM_USER, WOM_TOKEN, WOM_GROUP_ID, LIMIT):
 
 def Namechanges_Display(Namechange_Data):
 	changes = Namechange_Data["nameChanges"]
+	if not changes:
+		print("No name changes found.")
+		return
 	print()
 	print(f"Latest {len(changes)} name changes")
 	print()
@@ -182,23 +192,31 @@ def Namechanges_Display(Namechange_Data):
 			f"{change['created_at']:<30}"
 		)
 
-async def Competition_Get(WOM_USER, WOM_TOKEN, WOM_GROUP_ID):
-	print(f"WOM : Retriving latest competition for group {WOM_GROUP_ID}")
+async def Competition_Get(WOM_USER, WOM_TOKEN, WOM_GUILD, WOM_COMPETITION_ID=None):
+	if WOM_COMPETITION_ID:
+		print(f"WOM : Retrieving competition {WOM_COMPETITION_ID}")
+	else:
+		print(f"WOM : Retrieving latest competition for group {WOM_GUILD}")
 	[WOM_Client, Connected] = await Connect(WOM_USER, WOM_TOKEN)
 	Competition_Data = {}
 	try:
 		if Connected:
-			# get all competitions for group
-			result = await WOM_Client.groups.get_competitions(WOM_GROUP_ID)
-			if not result.is_ok:
-				raise Exception(f"Failed to retrieve competitions: {result}")
-			competitions = result.unwrap()
-			if not competitions:
-				raise Exception("No competitions found.")
-			# latest competition ordered on startdate
-			latest = max(competitions, key=lambda c: c.starts_at)
-			# get details from latest comp
-			details_result = await WOM_Client.competitions.get_details(latest.id)
+			if WOM_COMPETITION_ID:
+				# use the specific competition id provided
+				competition_id = WOM_COMPETITION_ID
+			else:
+				# get all competitions for group
+				result = await WOM_Client.groups.get_competitions(WOM_GUILD)
+				if not result.is_ok:
+					raise Exception(f"Failed to retrieve competitions: {result}")
+				competitions = result.unwrap()
+				if not competitions:
+					raise Exception("No competitions found.")
+				# latest competition ordered on startdate
+				latest = max(competitions, key=lambda c: c.starts_at)
+				competition_id = latest.id
+			# get details from comp
+			details_result = await WOM_Client.competitions.get_details(competition_id)
 			if not details_result.is_ok:
 				raise Exception(
 					f"Failed to retrieve competition details: "
@@ -239,6 +257,13 @@ async def Competition_Get(WOM_USER, WOM_TOKEN, WOM_GROUP_ID):
 
 def Competition_Display(Competition_Data):
 	competition = Competition_Data["competition"]
+	if not competition:
+		print("No competition found.")
+		return
+	results = competition["results"]
+	if not results:
+		print("No results found.")
+		return
 	print()
 	print(f"Competition: {competition['title']}")
 	print(f"ID:         {competition['competition_id']}")
@@ -253,10 +278,7 @@ def Competition_Display(Competition_Data):
 		f"{'Gained':>12}"
 	)
 	print("-" * 57)
-	for rank, result in enumerate(
-		competition["results"],
-		start=1
-	):
+	for rank, result in enumerate(results, start=1):
 		print(
 			f"{rank:<8}"
 			f"{result['player_id']:<12}"
@@ -264,15 +286,15 @@ def Competition_Display(Competition_Data):
 			f"{result['gained']:>12}"
 		)
 
-async def Activities_Get(WOM_USER, WOM_TOKEN, WOM_GROUP_ID, LIMIT):
-	print(f"WOM : Retriving name changes for group {WOM_GROUP_ID}")
+async def Activities_Get(WOM_USER, WOM_TOKEN, WOM_GUILD, LIMIT):
+	print(f"WOM : Retriving name changes for group {WOM_GUILD}")
 	[WOM_Client, Connected] = await Connect(WOM_USER, WOM_TOKEN)
 	Activity_Data = {}
 	try:
 		if Connected:
 			# get latest 50 activities
 			result = await WOM_Client.groups.get_activity(
-				WOM_GROUP_ID,
+				WOM_GUILD,
 				limit=LIMIT
 			)
 
@@ -309,6 +331,9 @@ async def Activities_Get(WOM_USER, WOM_TOKEN, WOM_GROUP_ID, LIMIT):
 
 def Activities_Display(Activity_Data):
 	activities = Activity_Data["activities"]
+	if not activities:
+		print("No activities found.")
+		return
 	print()
 	print(f"Group activities: {len(activities)}")
 	print()
@@ -341,8 +366,8 @@ async def main():
 	#Members_Display(Member_Data)
 	#Namechange_Data = await Namechanges_Get(WOM_USER, WOM_TOKEN, WOM_GUILD, LIMIT)
 	#Namechanges_Display(Namechange_Data)
-	#Competition_Data = await Competition_Get(WOM_USER, WOM_TOKEN, WOM_GUILD)
-	#Competition_Display(Competition_Data)
+	Competition_Data = await Competition_Get(WOM_USER, WOM_TOKEN, WOM_GUILD)
+	Competition_Display(Competition_Data)
 	Activity_Data = await Activities_Get(WOM_USER, WOM_TOKEN, WOM_GUILD, LIMIT)
 	Activities_Display(Activity_Data)
 
