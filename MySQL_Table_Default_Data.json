@@ -9,6 +9,12 @@
 		]
 	},
 
+	"osrs_roles": {
+		"key": "osrs_role_id",
+		"rows": [
+			{ "osrs_role_id": 0, "osrs_role_name": "not in clan" }
+		]
+	},
 
 	"points_sources": {
 		"key": "source_id",
@@ -61,48 +67,48 @@
 	"discord_promotion_ranks": {
 		"key": "promotion_rank_id",
 		"rows": [
-			{ "promotion_rank_id": 1, "discord_role_id": 0, "points_required": 0, "membership_time_required": 0, "automatic_promotion": true, "promotion_rank_id_progression": 2 },
-			{ "promotion_rank_id": 2, "discord_role_id": 1353479890053369886, "points_required": 0, "membership_time_required": 0, "automatic_promotion": true, "promotion_rank_id_progression": 3 },
-			{ "promotion_rank_id": 3, "discord_role_id": 989662722729857035, "points_required": 15, "membership_time_required": 1, "automatic_promotion": true, "promotion_rank_id_progression": 4 },
-			{ "promotion_rank_id": 4, "discord_role_id": 989662722729857036, "points_required": 35, "membership_time_required": 2, "automatic_promotion": true, "promotion_rank_id_progression": 5 },
-			{ "promotion_rank_id": 5, "discord_role_id": 989662722729857037, "points_required": 90, "membership_time_required": 4, "automatic_promotion": true, "promotion_rank_id_progression": 6 },
-			{ "promotion_rank_id": 6, "discord_role_id": 1543260465176772669, "points_required": 150, "membership_time_required": 12, "automatic_promotion": true, "promotion_rank_id_progression": 7 },
-			{ "promotion_rank_id": 7, "discord_role_id": 1543260474043408565, "points_required": 300, "membership_time_required": 18, "automatic_promotion": true, "promotion_rank_id_progression": 8 },
-			{ "promotion_rank_id": 8, "discord_role_id": 989662722847309835, "points_required": 500, "membership_time_required": 18, "automatic_promotion": false, "promotion_rank_id_progression": 9 },
-			{ "promotion_rank_id": 9, "discord_role_id": 989662722847309837, "points_required": 500, "membership_time_required": 18, "automatic_promotion": false, "promotion_rank_id_progression": 10 },
-			{ "promotion_rank_id": 10, "discord_role_id": 989662722847309838, "points_required": 500, "membership_time_required": 18, "automatic_promotion": false, "promotion_rank_id_progression": 11 },
-			{ "promotion_rank_id": 11, "discord_role_id": 989662722847309839, "points_required": 500, "membership_time_required": 18, "automatic_promotion": false, "promotion_rank_id_progression": 12 },
-			{ "promotion_rank_id": 12, "discord_role_id": 989662722847309842, "points_required": 1000, "membership_time_required": 24, "automatic_promotion": false, "promotion_rank_id_progression": 12 },
-			{ "promotion_rank_id": 13, "discord_role_id": 990049794078674994, "points_required": 1000, "membership_time_required": 24, "automatic_promotion": false, "promotion_rank_id_progression": 13 }
+			{ "promotion_rank_id": 0, "discord_role_id": 0, "points_required": 0, "membership_time_required": 0, "automatic_promotion": true, "promotion_rank_id_progression": 1 },
+			{ "promotion_rank_id": 1, "discord_role_id": 1353479890053369886, "points_required": 0, "membership_time_required": 0, "automatic_promotion": true, "promotion_rank_id_progression": 2 },
+			{ "promotion_rank_id": 2, "discord_role_id": 989662722729857035, "points_required": 15, "membership_time_required": 1, "automatic_promotion": true, "promotion_rank_id_progression": 3 },
+			{ "promotion_rank_id": 3, "discord_role_id": 989662722729857036, "points_required": 35, "membership_time_required": 2, "automatic_promotion": true, "promotion_rank_id_progression": 4 },
+			{ "promotion_rank_id": 4, "discord_role_id": 989662722729857037, "points_required": 90, "membership_time_required": 4, "automatic_promotion": true, "promotion_rank_id_progression": 5 },
+			{ "promotion_rank_id": 5, "discord_role_id": 1543260465176772669, "points_required": 150, "membership_time_required": 12, "automatic_promotion": true, "promotion_rank_id_progression": 6 },
+			{ "promotion_rank_id": 6, "discord_role_id": 1543260474043408565, "points_required": 300, "membership_time_required": 18, "automatic_promotion": true, "promotion_rank_id_progression": 7 },
+			{ "promotion_rank_id": 7, "discord_role_id": 989662722847309835, "points_required": 500, "membership_time_required": 18, "automatic_promotion": false, "promotion_rank_id_progression": 8 },
+			{ "promotion_rank_id": 8, "discord_role_id": 989662722847309837, "points_required": 500, "membership_time_required": 18, "automatic_promotion": false, "promotion_rank_id_progression": 9 },
+			{ "promotion_rank_id": 9, "discord_role_id": 989662722847309838, "points_required": 500, "membership_time_required": 18, "automatic_promotion": false, "promotion_rank_id_progression": 10 },
+			{ "promotion_rank_id": 10, "discord_role_id": 989662722847309839, "points_required": 500, "membership_time_required": 18, "automatic_promotion": false, "promotion_rank_id_progression": 11 },
+			{ "promotion_rank_id": 11, "discord_role_id": 989662722847309842, "points_required": 1000, "membership_time_required": 24, "automatic_promotion": false, "promotion_rank_id_progression": 11 },
+			{ "promotion_rank_id": 12, "discord_role_id": 990049794078674994, "points_required": 1000, "membership_time_required": 24, "automatic_promotion": false, "promotion_rank_id_progression": 12 }
 		]
 	},
 
 	"discord_promotion_roles": {
 		"key": "link_id",
 		"rows": [
-			{ "link_id": 1, "promotion_rank_id": 1, "discord_role_id": 0},
-			{ "link_id": 2, "promotion_rank_id": 2, "discord_role_id": 1353479890053369886},
-			{ "link_id": 3, "promotion_rank_id": 3, "discord_role_id": 989662722729857035},
-			{ "link_id": 4, "promotion_rank_id": 4, "discord_role_id": 989662722729857036},
-			{ "link_id": 5, "promotion_rank_id": 5, "discord_role_id": 989662722729857037},
-			{ "link_id": 6, "promotion_rank_id": 6, "discord_role_id": 1543260465176772669},
-			{ "link_id": 7, "promotion_rank_id": 7, "discord_role_id": 1543260474043408565},
-			{ "link_id": 8, "promotion_rank_id": 8, "discord_role_id": 989662722847309835},
-			{ "link_id": 9, "promotion_rank_id": 9, "discord_role_id": 989662722847309837},
-			{ "link_id": 10, "promotion_rank_id": 9, "discord_role_id": 990043513657884682},
-			{ "link_id": 11, "promotion_rank_id": 10, "discord_role_id": 989662722847309838},
-			{ "link_id": 12, "promotion_rank_id": 10, "discord_role_id": 990043513657884682},
-			{ "link_id": 13, "promotion_rank_id": 11, "discord_role_id": 989662722847309839},
-			{ "link_id": 14, "promotion_rank_id": 11, "discord_role_id": 990043513657884682},
-			{ "link_id": 15, "promotion_rank_id": 11, "discord_role_id": 989662722847309841},
-			{ "link_id": 16, "promotion_rank_id": 12, "discord_role_id": 989662722847309842},
-			{ "link_id": 17, "promotion_rank_id": 12, "discord_role_id": 990043513657884682},
-			{ "link_id": 18, "promotion_rank_id": 12, "discord_role_id": 989662722847309841},
-			{ "link_id": 19, "promotion_rank_id": 12, "discord_role_id": 992558926388281426},
-			{ "link_id": 20, "promotion_rank_id": 13, "discord_role_id": 990049794078674994},
-			{ "link_id": 21, "promotion_rank_id": 13, "discord_role_id": 990043513657884682},
-			{ "link_id": 22, "promotion_rank_id": 13, "discord_role_id": 989662722847309841},
-			{ "link_id": 23, "promotion_rank_id": 13, "discord_role_id": 992558926388281426}
+			{ "link_id": 1, "promotion_rank_id": 0, "discord_role_id": 0},
+			{ "link_id": 2, "promotion_rank_id": 1, "discord_role_id": 1353479890053369886},
+			{ "link_id": 3, "promotion_rank_id": 2, "discord_role_id": 989662722729857035},
+			{ "link_id": 4, "promotion_rank_id": 3, "discord_role_id": 989662722729857036},
+			{ "link_id": 5, "promotion_rank_id": 4, "discord_role_id": 989662722729857037},
+			{ "link_id": 6, "promotion_rank_id": 5, "discord_role_id": 1543260465176772669},
+			{ "link_id": 7, "promotion_rank_id": 6, "discord_role_id": 1543260474043408565},
+			{ "link_id": 8, "promotion_rank_id": 7, "discord_role_id": 989662722847309835},
+			{ "link_id": 9, "promotion_rank_id": 8, "discord_role_id": 989662722847309837},
+			{ "link_id": 10, "promotion_rank_id": 8, "discord_role_id": 990043513657884682},
+			{ "link_id": 11, "promotion_rank_id": 9, "discord_role_id": 989662722847309838},
+			{ "link_id": 12, "promotion_rank_id": 9, "discord_role_id": 990043513657884682},
+			{ "link_id": 13, "promotion_rank_id": 10, "discord_role_id": 989662722847309839},
+			{ "link_id": 14, "promotion_rank_id": 10, "discord_role_id": 990043513657884682},
+			{ "link_id": 15, "promotion_rank_id": 10, "discord_role_id": 989662722847309841},
+			{ "link_id": 16, "promotion_rank_id": 11, "discord_role_id": 989662722847309842},
+			{ "link_id": 17, "promotion_rank_id": 11, "discord_role_id": 990043513657884682},
+			{ "link_id": 18, "promotion_rank_id": 11, "discord_role_id": 989662722847309841},
+			{ "link_id": 19, "promotion_rank_id": 11, "discord_role_id": 992558926388281426},
+			{ "link_id": 20, "promotion_rank_id": 12, "discord_role_id": 990049794078674994},
+			{ "link_id": 21, "promotion_rank_id": 12, "discord_role_id": 990043513657884682},
+			{ "link_id": 22, "promotion_rank_id": 12, "discord_role_id": 989662722847309841},
+			{ "link_id": 23, "promotion_rank_id": 12, "discord_role_id": 992558926388281426}
 		]
 	},
 

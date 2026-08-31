@@ -27,10 +27,22 @@
     	"updated_at": "DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
     },
 
-    "discord_osrs_link": {
+    "osrs_roles": {
+        "osrs_role_id": "SMALLINT PRIMARY KEY",
+        "osrs_role_name": "VARCHAR(255)"
+    },
+
+    "link_discord_osrs_members": {
 	   "link_id": "INT PRIMARY KEY AUTO_INCREMENT",
        "discord_id": "BIGINT",
        "player_id": "INT NOT NULL",
+       "is_main_account": "BOOLEAN NOT NULL DEFAULT FALSE"
+    },
+
+    "link_discord_osrs_roles": {
+       "link_id": "INT PRIMARY KEY AUTO_INCREMENT",
+       "discord_role_id": "BIGINT DEFAULT 0",
+       "osrs_role_id": "SMALLINT DEFAULT 0",
        "is_main_account": "BOOLEAN NOT NULL DEFAULT FALSE"
     },
 
