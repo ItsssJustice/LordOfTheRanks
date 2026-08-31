@@ -16,7 +16,7 @@
         "discord_moderator_level": "SMALLINT DEFAULT 0"
     },
 
-    "osrs_clan_members": {
+    "osrs_members": {
     	"player_id": "BIGINT PRIMARY KEY",
     	"current_rsn": "VARCHAR(255) NOT NULL",
     	"rank_id": "INT NOT NULL",
@@ -29,9 +29,9 @@
 
     "discord_osrs_link": {
 	   "link_id": "INT PRIMARY KEY AUTO_INCREMENT",
-        "discord_id": "BIGINT",
-        "player_id": "INT NOT NULL",
-        "is_main_account": "BOOLEAN NOT NULL DEFAULT FALSE"
+       "discord_id": "BIGINT",
+       "player_id": "INT NOT NULL",
+       "is_main_account": "BOOLEAN NOT NULL DEFAULT FALSE"
     },
 
     "competitions": {
