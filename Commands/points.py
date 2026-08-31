@@ -6,7 +6,7 @@ Points_Sources = [Source for Source in Points_Sources if Source["source_id"] != 
 #Management of points adjustment for a single, or multiple discord members via the generation of tokens
 async def Points_Adjust(interaction: discord.Interaction, member: discord.Member, contribution: app_commands.Choice[int], level: app_commands.Choice[int], other_points: int, addition: bool) -> None:
 	#Verify user is a moderator to change another player's points
-	if not sql_update.Discord_Moderator_Command_Permitted(SQL_Cursor, interaction.user.id, 1):
+	if not sql_account_discord.Discord_Moderator_Command_Permitted(SQL_Cursor, interaction.user.id, 1):
 		await bot_config.Command_Permissions_Issue(interaction)
 		return None
 	#Variables accessible
@@ -44,7 +44,7 @@ async def Points_View(interaction: discord.Interaction, member: discord.member =
 	#Allow a user to view their own points
 	if interaction.user.id != member.id:
 		#Verify user is a moderator to view another player's points
-		if not sql_update.Discord_Moderator_Command_Permitted(SQL_Cursor, interaction.user.id, 1):
+		if not sql_account_discord.Discord_Moderator_Command_Permitted(SQL_Cursor, interaction.user.id, 1):
 			await bot_config.Command_Permissions_Issue(interaction)
 			return None
 	Points = await sql_points.Points_Get_User_Total(SQL_Connection, SQL_Cursor, member.id)
@@ -122,7 +122,7 @@ async def points_view(interaction: discord.Interaction, member: discord.Member =
 )
 async def token_toggle_enable(interaction: discord.Interaction, enabled: app_commands.Choice[int], token_id: int) -> None:
 	#Verify user is a moderator to enable/disable points tokens
-	if not sql_update.Discord_Moderator_Command_Permitted(SQL_Cursor, interaction.user.id, 1):
+	if not sql_account_discord.Discord_Moderator_Command_Permitted(SQL_Cursor, interaction.user.id, 1):
 		await bot_config.Command_Permissions_Issue(interaction)
 		return None
 	author_discord_id = interaction.user.id

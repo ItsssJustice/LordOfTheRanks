@@ -93,12 +93,12 @@ async def on_ready():
 	#discord_data.Roles_Display(Guild_Role_List)
 
 	#Get guild members
-	#print("Getting Guild Members")
+	print("Getting Guild Members")
 	Guild_Member_List = discord_data.Members_Get(client, guild_id=DISCORD_GUILD);
 	#discord_data.Members_Display(Guild_Member_List)
 
 	#Update guild members in the MySQL Database
-	sql_update.Discord_Member_Update(SQL_Connection, Guild_Member_List)
+	sql_account_discord.Discord_Member_Update(SQL_Connection, Guild_Member_List)
 	
 	#Rank votes: re-register open votes' buttons, check the rank ladder against
 	#the server's roles, and start watching for votes whose time is up
