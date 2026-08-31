@@ -88,21 +88,28 @@ async def on_ready():
 	except Exception as e:
 		print(f"Sync failed: {e}")
 	#Get guild roles
-	#print("Getting Guild Roles")
-	#Guild_Role_List = await discord_data.Roles_Get(client, guild_id=DISCORD_GUILD)
+	print("Discord : Getting Guild Roles")
+	Guild_Role_List = await discord_data.Roles_Get(client, guild_id=DISCORD_GUILD)
+	sql_account_discord.Roles_List_Update(SQL_Connection, Guild_Role_List)
 	#discord_data.Roles_Display(Guild_Role_List)
 
-	#Get guild members
-	print("Getting Guild Members")
-	Guild_Member_List = discord_data.Members_Get(client, guild_id=DISCORD_GUILD);
-	#discord_data.Members_Display(Guild_Member_List)
-
-	#Update guild members in the MySQL Database
-	sql_account_discord.Discord_Member_Update(SQL_Connection, Guild_Member_List)
+	#Get discord guild members
+	print("Discord : Getting Guild Members")
+	Discord_Guild_Member_List = discord_data.Members_Get(client, guild_id=DISCORD_GUILD);
+	#Update discord guild members in the MySQL Database
+	print("Discord : Updating Guild Members")
+	sql_account_discord.Members_List_Update(SQL_Connection, Discord_Guild_Member_List)
 	
+	#Get osrs guild members
+	print("WOM : Getting Guild Members")
+	OSRS_Guild_Member_List = await wom_data.Members_Get(WOM_USER, WOM_TOKEN, WOM_GUILD);
+	#Update osrs guild members in the MySQL Database
+	print("WOM : Updating Guild Members")
+	#sql_account_osrs.Members_Update(SQL_Connection, OSRS_Guild_Member_List)
+
 	#Rank votes: re-register open votes' buttons, check the rank ladder against
 	#the server's roles, and start watching for votes whose time is up
-	await poll_setup.On_Ready(client, DISCORD_GUILD)
+	#await poll_setup.On_Ready(client, DISCORD_GUILD)
 
 	#Bot ready to perform async actions on demand
 	print("Bot Ready!")

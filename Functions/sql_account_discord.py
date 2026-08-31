@@ -65,7 +65,7 @@ def _resolve_promotion_rank(data, role_rank_map):
     return max(matched_ranks) if matched_ranks else 1
 
 # Insert or Update discord members
-def Discord_Member_Update(connection, members, member_id=None):
+def Members_List_Update(connection, members, member_id=None):
     entries = _normalize(members, member_id)
     if not entries:
         return 0
@@ -82,7 +82,6 @@ def Discord_Member_Update(connection, members, member_id=None):
         )
         for data in entries
     ]
-
     cursor = connection.cursor()
     try:
         sql = """INSERT INTO discord_members (discord_id, name_user, name_global, name_display, name_nick, promotion_rank_id, discriminator) VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -96,4 +95,29 @@ def Discord_Member_Update(connection, members, member_id=None):
     finally:
         cursor.close()
 
-    return rowcount 
+    return rowcount
+
+# Insert or Update discord roles
+def Roles_List_Update(connection, Guild_Role_List):
+    if not Guild_Role_List:
+        return 0
+    rows = [
+        (
+            data["id"],
+            _text(data.get("name")),
+        )
+        for data in Guild_Role_List
+    ]
+    cursor = connection.cursor()
+    try:
+        sql = """INSERT INTO discord_roles (discord_role_id, discord_role_name) VALUES (%s, %s)
+        ON DUPLICATE KEY UPDATE discord_role_name = VALUES(discord_role_name)"""
+        cursor.executemany(sql, rows)
+        connection.commit()
+        rowcount = cursor.rowcount
+    except MySQLError:
+        connection.rollback()
+        raise
+    finally:
+        cursor.close()
+    return rowcount
