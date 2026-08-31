@@ -192,7 +192,7 @@ def Namechanges_Display(Namechange_Data):
 			f"{change['created_at']:<30}"
 		)
 
-async def Competition_Get(WOM_USER, WOM_TOKEN, WOM_GUILD, WOM_COMPETITION_ID=None):
+async def Competition_Get(WOM_USER, WOM_TOKEN, WOM_GUILD, WOM_COMPETITION_ID=None, Contribution_Threshold = 0):
 	if WOM_COMPETITION_ID:
 		print(f"WOM : Retrieving competition {WOM_COMPETITION_ID}")
 	else:
@@ -228,7 +228,7 @@ async def Competition_Get(WOM_USER, WOM_TOKEN, WOM_GUILD, WOM_COMPETITION_ID=Non
 			participants = sorted(
 				(
 					p for p in details.participations
-					if p.progress.gained > 0
+					if p.progress.gained > Contribution_Threshold
 				),
 				key=lambda p: p.progress.gained,
 				reverse=True
