@@ -119,3 +119,30 @@ def Members_List_And_Roles_List_Update(connection, member_data, member_id=None):
     finally:
         cursor.close()
     return rowcount
+
+#Get all osrs members
+def Members_Get(connection) -> list[dict]:
+    """Retrieves all rows from osrs_members as a list of dictionaries."""
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""SELECT player_id, current_rsn, rank_id, join_date, leave_date, current_member, created_at, updated_at FROM osrs_members""")
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+
+#Display all osrs members
+def Members_Display(members: list[dict]):
+    """Prints osrs_members formatted in the console."""
+    print(f"\n--- OSRS MEMBERS ({len(members)} records) ---")
+    header = f"{'Player ID':<10} | {'Current RSN':<20} | {'Rank ID':<8} | {'Active':<7} | {'Join Date'}"
+    print(header)
+    print("-" * len(header))
+    for m in members:
+        join_str = m['join_date'].strftime('%Y-%m-%d') if m['join_date'] else 'N/A'
+        print(
+            f"{str(m['player_id']):<10} | "
+            f"{str(m['current_rsn']):<20} | "
+            f"{str(m['rank_id']):<8} | "
+            f"{str(m['current_member']):<7} | "
+            f"{join_str}"
+        )

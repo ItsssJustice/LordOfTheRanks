@@ -94,8 +94,32 @@ def Members_List_Update(connection, members, member_id=None):
         raise
     finally:
         cursor.close()
-
     return rowcount
+
+#Get all discord members
+def Members_Get(connection) -> list[dict]:
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""SELECT discord_id, name_user, name_global, name_display, name_nick, promotion_rank_id, discriminator, created_at FROM discord_members""")
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+
+#Display all discord members
+def Members_Display(members: list[dict]):
+    """Prints discord_members formatted in the console."""
+    print(f"\n--- DISCORD MEMBERS ({len(members)} records) ---")
+    header = f"{'Discord ID':<20} | {'User Name':<15} | {'Global Name':<15} | {'Display Name':<15} | {'Nick Name':<15}"
+    print(header)
+    print("-" * len(header))
+    for m in members:
+        print(
+            f"{str(m['discord_id']):<20} | "
+            f"{str(m['name_user']):<15} | "
+            f"{str(m['name_global']):<15} | "
+            f"{str(m['name_display']):<15} | "
+            f"{str(m['name_nick']):<15}"
+        )
 
 # Insert or Update discord roles
 def Roles_List_Update(connection, Guild_Role_List):

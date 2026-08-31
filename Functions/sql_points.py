@@ -1,5 +1,5 @@
 #SQL Query for getting the points sources list
-def Points_Sources_Get(SQL_Cursor):
+def Sources_Get(SQL_Cursor):
 	sql = "SELECT source_id, source_description FROM points_sources ORDER BY source_id"
 	SQL_Cursor.execute(sql)
 	rows = SQL_Cursor.fetchall()
@@ -14,7 +14,7 @@ def Points_Sources_Get(SQL_Cursor):
 	return list(Points_Sources.values())
 
 #SQL Query for creating a points token and the associated points for users
-def Points_Token_Create(SQL_Connection, SQL_Cursor, source_id, author_discord_id, manual_assignment):
+def Token_Create(SQL_Connection, SQL_Cursor, source_id, author_discord_id, manual_assignment):
 	sql = "INSERT INTO points_tokens (source_id, created_by_discord_id, manual_assignment) VALUES (%s, %s, %s)"
 	SQL_Cursor.execute(sql, (source_id, author_discord_id, manual_assignment))
 	SQL_Connection.commit()
@@ -23,7 +23,7 @@ def Points_Token_Create(SQL_Connection, SQL_Cursor, source_id, author_discord_id
 	return Token_ID
 
 #SQL Query for inserting points transactions - accepts a single member or a list of members
-def Points_Transaction_Insert(SQL_Connection, SQL_Cursor, token_id, member, points):
+def Transaction_Create(SQL_Connection, SQL_Cursor, token_id, member, points):
 	# Normalize to a list so single-member and multi-member calls share the same code path
 	members = member if isinstance(member, list) else [member]
 	sql = "INSERT INTO points_transactions (token_id, discord_id, points) VALUES (%s, %s, %s)"
@@ -34,8 +34,21 @@ def Points_Transaction_Insert(SQL_Connection, SQL_Cursor, token_id, member, poin
 	print(f"SQL : Token ID {token_id} created {Transactions} transactions")
 	return SQL_Cursor.rowcount
 
+#SQL Query for adding points for a WOM competition
+def Points_Transaction_Insert_WOM(SQL_Connection, SQL_Cursor, token_id, member, points):
+	competition = Competition_Data["competition"]
+	if not competition:
+		print("No competition found.")
+		return
+	results = competition["results"]
+	if not results:
+		print("No results found.")
+		return
+	##TEMPORARY
+	return
+
 #SQL Query for enabling or disabling a points token
-def Points_Token_Enabled_Toggle(SQL_Connection, SQL_Cursor, author_discord_id, token_id, enabled):
+def Token_Toggle_Enable(SQL_Connection, SQL_Cursor, author_discord_id, token_id, enabled):
 	# Also ensure created_at is within the allowed number of days
 	sql = "SELECT config_executed FROM bot_config WHERE config_name=%s"
 	SQL_Cursor.execute(sql, ("token_id_read_only_days",))
@@ -60,7 +73,7 @@ def Points_Token_Enabled_Toggle(SQL_Connection, SQL_Cursor, author_discord_id, t
 	return True
 
 #SQL Query for obtaining the points value for a given token
-def Points_Get_Value(SQL_Cursor, source_id, level_id, addition: int = 1, other_points: int = 0):
+def Value_Get(SQL_Cursor, source_id, level_id, addition: int = 1, other_points: int = 0):
 	#Use custom points value, or standard tables
 	if source_id == 2:
 		Value = other_points
@@ -79,7 +92,7 @@ def Points_Get_Value(SQL_Cursor, source_id, level_id, addition: int = 1, other_p
 	return Value
 
 #SQL Query for obtaining a user's points
-async def Points_Get_User_Total(SQL_Connection, SQL_Cursor, discord_id: int = 0):
+async def User_Total_Get(SQL_Connection, SQL_Cursor, discord_id: int = 0):
 	if discord_id == 0:
 		return None
 	else:
