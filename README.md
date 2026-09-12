@@ -6,6 +6,7 @@
 ## Required python packages
 - python -m pip install python-dotenv
 - python -m pip install discord
+- pip install -U git+https://github.com/Rapptz/discord-ext-menus
 - python -m pip install mysql-connector-python
 - python -m pip install wom.py
 
