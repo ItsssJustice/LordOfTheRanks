@@ -131,9 +131,17 @@ class Message_Group:
 
 #Displays an error due to command permissions
 async def Command_Permissions_Issue(interaction, Display_Message = True):
+	from Functions import embed_handling
+	import discord
 	Message = "You do not have the correct permissions execute this command with the inputs supplied. Please contact a moderator if you believe this is incorrect."
+	Embed = embed_handling.Build(
+		title="Command Failed",
+		description=Message,
+		colour=discord.Colour.red()
+	)
 	if Display_Message:
-		await interaction.response.send_message(Message, ephemeral=True)
+		await embed_handling.Send(interaction, Embed, ephemeral=True)
+		return None
 	return Message
 
 #Log channel

@@ -7,7 +7,7 @@ import discord
 # checked here first, anything too long is trimmed and the trim is printed to
 # console so it's visible without the caller having to check for it.
 #
-# Paginate turns a long field list into several embeds; hand that list
+# Embed_Paginate turns a long field list into several embeds; hand that list
 # to Send and it becomes an Embed_Paginator_View (Previous/Stop/Next
 # buttons) instead of a single message.
 #
@@ -19,9 +19,19 @@ import discord
 #    "row": int, "callback": async def(interaction, view)}
 # or, for a link button that opens a URL without ever reaching the bot:
 #   {"label": str, "emoji": str, "style": discord.ButtonStyle.link, "url": str}
-# All keys except one of "callback"/"url" are optional. The behaviour behind
-# a callback button belongs entirely to whoever built the button list - see
-# Commands/embed_example.py for worked examples.
+# All keys except one of "callback"/"url" are optional.
+#
+# On a paginated (Embed_Paginator_View) message, a spec may also carry
+# "cancel": True. That entry REPLACES the built-in Stop button in place - same
+# position, same row - rather than being appended as an extra item. Its own
+# callback then runs instead of the default stop/delete behaviour, and is
+# responsible for calling view.stop() itself if the view should stop reacting
+# to further clicks. Only the first "cancel"-marked spec in the list is used;
+# this has no special meaning on a non-paginated Embed_Button_View, which has
+# no Stop button to replace.
+#
+# The behaviour behind a callback button belongs entirely to whoever built the
+# button list - see Commands/points.py for a worked example.
 #
 # Update/Delete take either a plain discord.Message or the
 # Embed_Paginator_View/Embed_Button_View handed back by Send, so the
@@ -95,7 +105,7 @@ def Build(title=None, description=None, colour=None, fields=None, footer=None,
 		Fields = list(fields or [])
 		if len(Fields) > EMBED_LIMIT_FIELDS:
 			print("Build : %d fields supplied, discord allows %d per embed. The remaining "
-				  "%d were dropped - use Paginate to spread them across pages instead."
+				  "%d were dropped - use Embed_Paginate to spread them across pages instead."
 				  % (len(Fields), EMBED_LIMIT_FIELDS, len(Fields) - EMBED_LIMIT_FIELDS))
 			Fields = Fields[:EMBED_LIMIT_FIELDS]
 
@@ -183,8 +193,21 @@ def _Build_Custom_Button(Spec, View):
 	Button.callback = _On_Click
 	return Button
 
+#Pull the first "cancel": True spec out of a button-spec list, if there is one.
+#Returns (Cancel_Spec_Or_None, Remaining_Specs).
+def _Split_Cancel_Spec(Extra_Buttons):
+	Cancel_Spec = None
+	Remaining = []
+	for Spec in (Extra_Buttons or []):
+		if Cancel_Spec is None and Spec.get("cancel"):
+			Cancel_Spec = Spec
+		else:
+			Remaining.append(Spec)
+	return Cancel_Spec, Remaining
+
 #A single embed with nothing but caller-supplied extra buttons attached - the non-paginated
 #counterpart to Embed_Paginator_View. Only the person who triggered Send may use them.
+#Has no built-in Stop button, so a "cancel"-marked spec here is treated as an ordinary button.
 class Embed_Button_View(discord.ui.View):
 	def __init__(self, Author_Id, Extra_Buttons=None, timeout=180):
 		super().__init__(timeout=timeout)
@@ -211,6 +234,20 @@ class Embed_Button_View(discord.ui.View):
 
 #Previous/Stop/Next buttons over a list of pre-built embeds, plus any caller-supplied extra
 #buttons appended after them. Only the person who triggered Send may operate any of them.
+#
+#If extra_buttons contains a spec marked "cancel": True, that spec REPLACES the Stop button in
+#place (same row, same position) rather than being added alongside it - see the module docstring
+#above. Built by hand rather than with @discord.ui.button, so that swap can be made cleanly
+#without disturbing the Previous/Next ordering either side of it.
+#Previous/Stop/Next buttons over a list of pre-built embeds, plus any caller-supplied extra
+#buttons appended after them. Only the person who triggered Send may operate any of them.
+#
+#Standard left-to-right order is: Previous, Next, Cancel/Stop, then any remaining extra buttons
+#in the exact order the caller supplied them.
+#
+#If extra_buttons contains a spec marked "cancel": True, that spec REPLACES the Stop button in
+#place rather than being added as a further item - see the module docstring above. Built by hand
+#rather than with @discord.ui.button, so the ordering can be controlled explicitly.
 class Embed_Paginator_View(discord.ui.View):
 	def __init__(self, Pages, Author_Id, Delete_On_Stop=True, Extra_Buttons=None, timeout=180):
 		super().__init__(timeout=timeout)
@@ -219,8 +256,22 @@ class Embed_Paginator_View(discord.ui.View):
 		self.Author_Id = Author_Id
 		self.Delete_On_Stop = Delete_On_Stop
 		self.message = None  # filled in by Send once the message exists
+		Cancel_Spec, Remaining_Extras = _Split_Cancel_Spec(Extra_Buttons)
+		self.Previous_Button = discord.ui.Button(label="◀", style=discord.ButtonStyle.secondary, row=0)
+		self.Previous_Button.callback = self._On_Previous
+		self.add_item(self.Previous_Button)
+		self.Next_Button = discord.ui.Button(label="▶", style=discord.ButtonStyle.secondary, row=0)
+		self.Next_Button.callback = self._On_Next
+		self.add_item(self.Next_Button)
+		if Cancel_Spec is not None:
+			self.Stop_Button = _Build_Custom_Button(Cancel_Spec, self)
+			self.Stop_Button.row = 0
+		else:
+			self.Stop_Button = discord.ui.Button(label="Stop", style=discord.ButtonStyle.danger, row=0)
+			self.Stop_Button.callback = self._On_Stop
+		self.add_item(self.Stop_Button)
 		self._Sync_Buttons()
-		for Spec in (Extra_Buttons or []):
+		for Spec in Remaining_Extras:
 			self.add_item(_Build_Custom_Button(Spec, self))
 
 	def _Sync_Buttons(self):
@@ -234,14 +285,13 @@ class Embed_Paginator_View(discord.ui.View):
 			return False
 		return True
 
-	@discord.ui.button(label="◀", style=discord.ButtonStyle.secondary, row=0)
-	async def Previous_Button(self, interaction: discord.Interaction, button: discord.ui.Button):
+	async def _On_Previous(self, interaction: discord.Interaction):
 		self.Index -= 1
 		self._Sync_Buttons()
 		await interaction.response.edit_message(embed=self.Pages[self.Index], view=self)
 
-	@discord.ui.button(label="Stop", style=discord.ButtonStyle.danger, row=0)
-	async def Stop_Button(self, interaction: discord.Interaction, button: discord.ui.Button):
+	#Default Stop behaviour - only ever wired up when no "cancel" spec replaced it.
+	async def _On_Stop(self, interaction: discord.Interaction):
 		self.stop()
 		if self.Delete_On_Stop:
 			try:
@@ -254,8 +304,7 @@ class Embed_Paginator_View(discord.ui.View):
 				Item.disabled = True
 			await interaction.response.edit_message(view=self)
 
-	@discord.ui.button(label="▶", style=discord.ButtonStyle.secondary, row=0)
-	async def Next_Button(self, interaction: discord.Interaction, button: discord.ui.Button):
+	async def _On_Next(self, interaction: discord.Interaction):
 		self.Index += 1
 		self._Sync_Buttons()
 		await interaction.response.edit_message(embed=self.Pages[self.Index], view=self)
@@ -315,13 +364,18 @@ async def Send(interaction, Embeds, ephemeral=False, extra_buttons=None, timeout
 		print("Send : failed to send embed(s): %r" % Error)
 		return None
 
-#Edit an already-sent embed message (or the current page of a view) in place.
-async def Update(Message_Or_View, New_Embed):
+#Edit an already-sent embed message (or the current page of a view) in place. Pass New_View to
+#also replace the message's components in the same edit - e.g. after disabling buttons following
+#a click, so the disabled state is pushed back to discord in one call.
+async def Update(Message_Or_View, New_Embed, New_View=None):
 	Target = (Message_Or_View.message
 			  if isinstance(Message_Or_View, (Embed_Paginator_View, Embed_Button_View))
 			  else Message_Or_View)
 	try:
-		await Target.edit(embed=New_Embed)
+		if New_View is not None:
+			await Target.edit(embed=New_Embed, view=New_View)
+		else:
+			await Target.edit(embed=New_Embed)
 		return True
 	except discord.HTTPException as Error:
 		print("Update : failed to update embed message: %r" % Error)

@@ -3,89 +3,6 @@ Points_Sources = sql_points.Sources_Get(SQL_Cursor)
 #remove the source_id = 1 entry (bot configuration)
 Points_Sources = [Source for Source in Points_Sources if Source["source_id"] != 1]
 
-# Class for handling UI components of Points_WOM_Competition
-class Add_WOM_Competition_Confirm(discord.ui.View):
-	def __init__(self, interaction: discord.Interaction, Competition_Data: dict, contribution: dict, level: dict, discord_ids: list, message_group: "bot_config.Message_Group"):
-		super().__init__(timeout=120)
-		self.original_interaction = interaction
-		self.Competition_Data = Competition_Data
-		self.contribution = contribution
-		self.level = level
-		self.discord_ids = discord_ids
-		self.message_group = message_group
-
-	async def on_timeout(self):
-		# Disable buttons and let the moderator know the prompt expired
-		for item in self.children:
-			item.disabled = True
-		try:
-			await self.message_group.Edit("Confirmation timed out, no points were added.", view=self)
-		except discord.NotFound:
-			pass
-
-	@discord.ui.button(label="Confirm", emoji="✅", style=discord.ButtonStyle.success)
-	async def Confirm_Button(self, interaction: discord.Interaction, button: discord.ui.Button):
-		# Only the moderator who ran the command can confirm
-		if interaction.user.id != self.original_interaction.user.id:
-			await interaction.response.send_message("Only the person who ran this command can confirm it.", ephemeral=True)
-			return
-		competition = self.Competition_Data["competition"]
-		if not self.discord_ids:
-			# No Points_Adjust call on this path, so this interaction must be
-			# acknowledged here directly
-			await interaction.response.defer()
-			for item in self.children:
-				item.disabled = True
-			await self.message_group.Edit("⚠️ No linked Discord accounts found among participants — no points added.", view=self)
-			self.stop()
-			return
-		# Resolve raw Discord IDs to Member objects
-		members = []
-		missing_members = []
-		for discord_id in self.discord_ids:
-			member = interaction.guild.get_member(discord_id)
-			if member is None:
-				try:
-					member = await interaction.guild.fetch_member(discord_id)
-				except discord.NotFound:
-					missing_members.append(discord_id)
-					continue
-			members.append(member)
-		if not members:
-			# No Points_Adjust call on this path either, so acknowledge here
-			await interaction.response.defer()
-			for item in self.children:
-				item.disabled = True
-			await self.message_group.Edit("⚠️ None of the linked Discord accounts could be resolved to server members — no points added.", view=self)
-			self.stop()
-			return
-
-		for item in self.children:
-			item.disabled = True
-		content = f"✅ Points added for **{len(members)}** participants in **{competition['title']}**."
-		if missing_members:
-			content += f"\n\n⚠️ {len(missing_members)} linked account(s) could not be found in the server and were skipped: {', '.join(str(m) for m in missing_members)}"
-		# self.message_group edits the ORIGINAL slash-command interaction's
-		# webhook - a different interaction/token to this button-click
-		# interaction, so this does not consume `interaction`'s response slot
-		await self.message_group.Edit(content, view=self)
-		# Points_Adjust internally calls interaction.response.send_message(...),
-		# which acknowledges THIS button-click interaction - do not defer or
-		# respond to `interaction` anywhere above this line on this code path
-		await Points_Adjust(interaction, self.contribution, self.level, members, 0, True)
-		self.stop()
-
-	@discord.ui.button(label="Cancel", emoji="❌", style=discord.ButtonStyle.danger)
-	async def Cancel_Button(self, interaction: discord.Interaction, button: discord.ui.Button):
-		if interaction.user.id != self.original_interaction.user.id:
-			await interaction.response.send_message("Only the person who ran this command can cancel it.", ephemeral=True)
-			return
-		await interaction.response.defer()
-		for item in self.children:
-			item.disabled = True
-		await self.message_group.Edit("❌ Points addition cancelled.", view=self)
-		self.stop()
-
 #Management of points adjustment for a single, or multiple discord members via the generation of tokens
 async def Points_Adjust(interaction: discord.Interaction, contribution: app_commands.Choice[int], level: app_commands.Choice[int], member: discord.Member | list[discord.Member], other_points: int, addition: bool) -> None:
 	#Verify user is a moderator to change another player's points
@@ -95,7 +12,12 @@ async def Points_Adjust(interaction: discord.Interaction, contribution: app_comm
 	#Normalize input to a list of members
 	members = member if isinstance(member, list) else [member]
 	if not members:
-		await interaction.response.send_message("No members were provided to adjust points for.", ephemeral=True)
+		Embed = embed_handling.Build(
+			title="Points Adjustment Failed",
+			description="No members were provided to adjust points for.",
+			colour=discord.Colour.red()
+		)
+		await embed_handling.Send(interaction, Embed, ephemeral=True)
 		return None
 	#Variables accessible
 	awarded_by = interaction.user.id
@@ -113,20 +35,30 @@ async def Points_Adjust(interaction: discord.Interaction, contribution: app_comm
 		Transactions = sql_points.Transaction_Create(SQL_Connection, SQL_Cursor, Token_ID, members, Points_Value)
 		#Format user list - single mention, or a line-by-line list for multiple members
 		if len(members) == 1:
-			user_lines = members[0].mention
+			User_Lines = members[0].mention
 		else:
-			user_lines = "\n".join(f"- {m.mention}" for m in members)
-		await interaction.response.send_message(
-			f"**Points {action_word}**\n"
-			f"Token ID = {Token_ID}, Transactions = {Transactions}\n"
-			f"User(s):\n{user_lines}\n"
-			f"Points: {Points_Value}\n"
-			f"Source: {source_name} ({source_id})\n"
-			f"Tier: {level_name} ({level_id})\n"
-			f"{action_word} by: <@{awarded_by}>"
-		)
+			User_Lines = "\n".join("- %s" % m.mention for m in members)
+			Embed = embed_handling.Build(
+			title="Points %s" % action_word,
+			colour=discord.Colour.green() if addition else discord.Colour.red(),
+			fields=[
+					("%s by" % action_word, "<@%d>" % awarded_by, True),
+					("Token ID", "%d" % (Token_ID), True),
+					("Transactions", "%d" % (Transactions), True),
+					("Points", str(Points_Value), True),
+					("Source", "%s" % (source_name), True),
+					("Tier", "%s" % (level_name), True),
+					("User(s)", User_Lines, False),
+				]
+			)
+			await embed_handling.Send(interaction, Embed)
 	else:
-		await interaction.response.send_message("Could not create a valid points token, please check the command input", ephemeral=True)
+		Embed = embed_handling.Build(
+			title="Points Adjustment Failed",
+			description="Could not create a valid points token, please check the command input.",
+			colour=discord.Colour.red()
+		)
+		await embed_handling.Send(interaction, Embed, ephemeral=True)
 		return
 
 async def Add_WOM_Competition(interaction: discord.Interaction, contribution: app_commands.Choice[int], level: app_commands.Choice[int], contribution_threshold: int = 0, competition_id: int = None):
@@ -136,7 +68,12 @@ async def Add_WOM_Competition(interaction: discord.Interaction, contribution: ap
 		return None
 	#Verify the points threshold specified is not 0
 	if contribution_threshold == 0:
-		await interaction.response.send_message("A contribution threshold value of 0 will add points to every clan member, please revise your command input", ephemeral=True)
+		Embed = embed_handling.Build(
+			title="Invalid Contribution Threshold",
+			description="A contribution threshold value of 0 will add points to every clan member, please revise your command input.",
+			colour=discord.Colour.red()
+		)
+		await embed_handling.Send(interaction, Embed, ephemeral=True)
 		return None
 	#Defer immediately - wom_data.Competition_Get and the SQL lookups below can
 	#exceed Discord's 3-second interaction response window, which invalidates
@@ -144,48 +81,164 @@ async def Add_WOM_Competition(interaction: discord.Interaction, contribution: ap
 	await interaction.response.defer(ephemeral=True)
 	#Gather the requested competition data
 	Competition_Data = await wom_data.Competition_Get(WOM_USER, WOM_TOKEN, WOM_GUILD, competition_id, contribution_threshold)
-	#Format the interactive response for the event host
 	competition = Competition_Data["competition"]
 	if not competition:
-		await interaction.followup.send("No competition found.", ephemeral=True)
+		Embed = embed_handling.Build(title="No Competition Found", colour=discord.Colour.red())
+		await embed_handling.Send(interaction, Embed, ephemeral=True)
 		return
 	results = competition["results"]
 	if not results:
-		await interaction.followup.send("No results found.", ephemeral=True)
+		Embed = embed_handling.Build(title="No Results Found", colour=discord.Colour.red())
+		await embed_handling.Send(interaction, Embed, ephemeral=True)
 		return
+
 	#Look up linked Discord accounts for every RSN in the results
 	participant_ids = [result["player_id"] for result in results]
 	Linked_Accounts = sql_account_link.Linked_Accounts_Get(SQL_Cursor, player_id=participant_ids)
 	linked_lookup = {account["player_id"]: account["discord_id"] for account in Linked_Accounts}
 	#Discord IDs only for RSNs that have a linked account
 	discord_ids = [linked_lookup[result["player_id"]] for result in results if result["player_id"] in linked_lookup]
-	#Create list of subtotals, showing linked Discord info or a warning if unlinked
-	source_lines_parts = []
+
+	#Build an aligned, monospaced table of who will receive points, rather than one field per
+	#participant - RSN | Discord | Competition Gain.
+	Table_Rows = []
 	for result in results:
 		discord_id = linked_lookup.get(result["player_id"])
 		if discord_id:
 			member = interaction.guild.get_member(discord_id) if interaction.guild else None
-			discord_display = f"{member.mention}" if member else f"<@{discord_id}>"
-			source_lines_parts.append(f"{result['display_name']} — {discord_display}: {result['gained']}")
+			Discord_Cell = member.display_name if member else str(discord_id)
 		else:
-			source_lines_parts.append(f"⚠️ {result['display_name']} — `no discord linked`: {result['gained']}")
-	source_lines = "\n".join(source_lines_parts)
-	content = (
-		f"**Points for Competition: {competition['title']}** (`{competition['competition_id']}`)\n"
-		f"Start:  {competition['starts_at']} -  End: {competition['ends_at']}\n"
-		f"Metric: {competition['metric']} - Participants: {len(results)}\n\n"
-		f"{source_lines}\n\n"
-		f"Runescape accounts with no discord linkage will be granted no points.\n"
-		f"Confirm Points Addition?"
-	)
+			#Bold markdown does not render inside a fenced code block (discord does not parse
+			#markdown there), so the warning triangle plus uppercase stands in for emphasis while
+			#keeping the row's width predictable for column alignment.
+			Discord_Cell = "⚠ NOT LINKED"
+		Table_Rows.append((result["display_name"], Discord_Cell, str(result["gained"])))
 
-	#Send response to event host for verification, splitting across messages if needed
-	message_group = bot_config.Message_Group(interaction, ephemeral=True)
-	view = Add_WOM_Competition_Confirm(interaction, Competition_Data, contribution, level, discord_ids, message_group)
-	await message_group.Send(content, view=view)
+	Headers = ("RSN", "Discord", "Competition Gain")
+	Column_Widths = [
+		max(len(Headers[i]), max((len(Row[i]) for Row in Table_Rows), default=0))
+		for i in range(3)
+	]
+
+	def _Format_Row(Row):
+		return "  ".join(Cell.ljust(Column_Widths[i]) for i, Cell in enumerate(Row))
+
+	Header_Line = _Format_Row(Headers)
+	Separator_Line = "  ".join("-" * Width for Width in Column_Widths)
+
+	#Chunked across pages so no single embed breaches discord's 4096 character description
+	#limit - Build would otherwise silently trim the table mid-row.
+	Rows_Per_Page = 20
+	Row_Chunks = [Table_Rows[i:i + Rows_Per_Page] for i in range(0, len(Table_Rows), Rows_Per_Page)] or [[]]
+	Page_Count = len(Row_Chunks)
+
+	Pages = []
+	for Page_Index, Chunk in enumerate(Row_Chunks):
+		Table_Lines = [Header_Line, Separator_Line] + [_Format_Row(Row) for Row in Chunk]
+		Table_Block = "```\n%s\n```" % "\n".join(Table_Lines)
+		Description = (
+			"Start: %s  -  End: %s\nMetric: %s  -  Participants: %d\n\n"
+			"Runescape accounts with no discord linkage will be granted no points.\n\n"
+			"%s\n\nConfirm Points Addition?"
+			% (competition["starts_at"], competition["ends_at"], competition["metric"],
+			   len(results), Table_Block)
+		)
+		Pages.append(embed_handling.Build(
+			title="Points for Competition: %s" % competition["title"],
+			description=Description,
+			colour=discord.Colour.blurple(),
+			footer=("Page %d/%d" % (Page_Index + 1, Page_Count)) if Page_Count > 1 else None
+		))
+
+	#The two extra buttons attached below. embed_handling only renders these and dispatches their
+	#clicks - all of the actual confirm/cancel behaviour lives here, as closures over this call's
+	#contribution/level/discord_ids/competition.
+	async def _Confirm_Clicked(Click_Interaction: discord.Interaction, View):
+		for Item in View.children:
+			Item.disabled = True
+		if not discord_ids:
+			Result_Embed = embed_handling.Build(
+				title="Points Addition Cancelled",
+				description="⚠️ No linked Discord accounts found among participants — no points added.",
+				colour=discord.Colour.orange()
+			)
+			await Click_Interaction.response.defer()
+			await embed_handling.Update(View, Result_Embed, New_View=View)
+			View.stop()
+			return
+		#Resolve raw Discord IDs to Member objects
+		Members = []
+		Missing_Members = []
+		for discord_id in discord_ids:
+			member = interaction.guild.get_member(discord_id)
+			if member is None:
+				try:
+					member = await interaction.guild.fetch_member(discord_id)
+				except discord.NotFound:
+					Missing_Members.append(discord_id)
+					continue
+			Members.append(member)
+		if not Members:
+			Result_Embed = embed_handling.Build(
+				title="Points Addition Cancelled",
+				description="⚠️ None of the linked Discord accounts could be resolved to server members — no points added.",
+				colour=discord.Colour.orange()
+			)
+			await Click_Interaction.response.defer()
+			await embed_handling.Update(View, Result_Embed, New_View=View)
+			View.stop()
+			return
+		#Participants with no linked discord account at all - never made it into discord_ids
+		#in the first place, so they never had a chance to fail resolution above either.
+		Unlinked_Count = len(results) - len(discord_ids)
+		Result_Fields = []
+		if Missing_Members:
+			Result_Fields.append(("Skipped (no discord account linked)",", ".join(str(m) for m in Missing_Members), False))
+		if Unlinked_Count:
+			Result_Fields.append(("Skipped (no linked account)", str(Unlinked_Count), False))
+		Description = "✅ Points added for **%d** participant(s) in **%s**." % (len(Members), competition["title"])
+		if Unlinked_Count:
+			Description += "\n⚠️ **%d** participant(s) skipped — no linked Discord account." % Unlinked_Count
+		Result_Embed = embed_handling.Build(
+			title="Points Added",
+			description=Description,
+			colour=discord.Colour.green(),
+			fields=Result_Fields
+		)
+		#Edits the confirm dialog's OWN message via embed_handling.Embed_Update (a webhook edit),
+		#not Click_Interaction.response - that keeps this click's response slot free for
+		#Points_Adjust below, which sends its own separate confirmation message using the same
+		#interaction. Do not defer or respond to Click_Interaction anywhere above this line.
+		await embed_handling.Update(View, Result_Embed, New_View=View)
+		await Points_Adjust(Click_Interaction, contribution, level, Members, 0, True)
+		View.stop()
+
+	async def _Cancel_Clicked(Click_Interaction: discord.Interaction, View):
+		for Item in View.children:
+			Item.disabled = True
+		Result_Embed = embed_handling.Build(
+			title="Points Addition Cancelled",
+			description="❌ Cancelled by %s." % Click_Interaction.user.mention,
+			colour=discord.Colour.red()
+		)
+		await Click_Interaction.response.defer()
+		await embed_handling.Update(View, Result_Embed, New_View=View)
+		View.stop()
+
+	#"cancel": True tells Embed_Paginator_View to put this button in the Stop button's own slot
+	#instead of adding it as a fourth item.
+	Extra_Buttons = [
+		{"label": "Confirm", "emoji": "✅", "style": discord.ButtonStyle.success, "callback": _Confirm_Clicked},
+		{"label": "Cancel", "emoji": "❌", "style": discord.ButtonStyle.danger, "callback": _Cancel_Clicked, "cancel": True},
+	]
+
+	#interaction_check on the view embed_handling builds already restricts these buttons to
+	#interaction.user - the moderator who ran this command - so no separate author check is
+	#needed in the callbacks above.
+	await embed_handling.Send(interaction, Pages, ephemeral=True, extra_buttons=Extra_Buttons, timeout=120)
 
 #View a user's points
-async def Points_View(interaction: discord.Interaction, member: discord.member = None, subtotals_to_display: int = 0):
+async def Points_View(interaction: discord.Interaction, member: discord.Member = None, subtotals_to_display: int = 0):
 	#Assert that if the discord id is blank, to use the current user
 	if member is None:
 		member = interaction.user
@@ -197,7 +250,12 @@ async def Points_View(interaction: discord.Interaction, member: discord.member =
 			return None
 	Points = await sql_points.User_Total_Get(SQL_Connection, SQL_Cursor, member.id)
 	if Points is None:
-		await interaction.response.send_message("Could not display points totals, please check the command input", ephemeral=True)
+		Embed = embed_handling.Build(
+			title="Points Lookup Failed",
+			description="Could not display points totals, please check the command input.",
+			colour=discord.Colour.red()
+		)
+		await embed_handling.Send(interaction, Embed, ephemeral=True)
 		return
 	#Sort subtotals
 	subtotals = sorted(Points["subtotals"], key=lambda subtotal: subtotal["points"], reverse=True)
@@ -205,16 +263,15 @@ async def Points_View(interaction: discord.Interaction, member: discord.member =
 		#ensure subtotals to display isn't larger than the number of subtotals available
 		subtotals_to_display = min(subtotals_to_display, len(subtotals))
 		subtotals = subtotals[:subtotals_to_display]
-	#Create list of subtotals
-	source_lines = "\n".join(
-		f"{subtotal['source_description']}: {subtotal['points']}"
-		for subtotal in subtotals
+	Fields = [(subtotal["source_description"], str(subtotal["points"]), True) for subtotal in subtotals]
+	Embed = embed_handling.Build(
+		title="Points for %s" % member.display_name,
+		description="Total Points: **%d**" % Points["total"],
+		colour=discord.Colour.blurple(),
+		#thumbnail_url=member.display_avatar.url,
+		fields=Fields
 	)
-	await interaction.response.send_message(
-		f"**Points for {member.mention}** (`{member.id}`)\n"
-		f"Total Points: {Points['total']}\n\n"
-		f"{source_lines}", ephemeral=True,
-	)
+	await embed_handling.Send(interaction, Embed, ephemeral=True)
 
 # Points subcommand group; appears in Discord as "/points <subcommand>"
 Points_Group = app_commands.Group(name="points", description="Manage member points", guild_ids=[int(DISCORD_GUILD)])
@@ -292,15 +349,27 @@ async def token_toggle_enable(interaction: discord.Interaction, enabled: app_com
 		return None
 	author_discord_id = interaction.user.id
 	enabled_id = enabled.value
-	enabled_name = enabled.name
 	Token_Enabled = sql_points.Token_Toggle_Enable(SQL_Connection, SQL_Cursor, author_discord_id, token_id, enabled_id)
 	action_word = "enabled" if enabled_id == 1 else "disabled"
-	if Token_Enabled == None:
-		await interaction.response.send_message(f"Token ID : {token_id} could not be found or is read only")
-	elif Token_Enabled == False:
-		await interaction.response.send_message(f"Token ID : {token_id} is already in the {action_word} state")
-	elif Token_Enabled == True:
-		await interaction.response.send_message(f"Token ID : {token_id} successfully {action_word}")
+	if Token_Enabled is None:
+		Embed = embed_handling.Build(
+			title="Token Not Found",
+			description="Token ID `%d` could not be found or is read only." % token_id,
+			colour=discord.Colour.red()
+		)
+	elif Token_Enabled is False:
+		Embed = embed_handling.Build(
+			title="No Change",
+			description="Token ID `%d` is already in the %s state." % (token_id, action_word),
+			colour=discord.Colour.orange()
+		)
+	else:
+		Embed = embed_handling.Build(
+			title="Token Updated",
+			description="Token ID `%d` successfully %s." % (token_id, action_word),
+			colour=discord.Colour.green()
+		)
+	await embed_handling.Send(interaction, Embed, ephemeral=True)
 
 #Add command list for the points management
 tree.add_command(Points_Group)
