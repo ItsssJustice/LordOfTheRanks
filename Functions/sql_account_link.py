@@ -323,7 +323,7 @@ async def Linked_Accounts_Update(SQL_Connection, SQL_Cursor, discord_id, osrs_id
 	if discord_id <= 0 or osrs_id <= 0:
 		return None
 	caller_id = caller_id if caller_id is not None else DISCORD_USER
-	is_moderator = sql_account_discord.Discord_Moderator_Command_Permitted(SQL_Cursor, discord_id, 1)
+	is_moderator = sql_account_discord.Discord_Moderator_Command_Permitted(SQL_Cursor, caller_id, 1)
 	modifying_another_user = caller_id != discord_id
 	if caller_id != DISCORD_USER and modifying_another_user and not is_moderator:
 		return "permission_denied"
@@ -483,9 +483,7 @@ async def Linked_Accounts_Delete(SQL_Connection, SQL_Cursor, discord_id, osrs_id
 		SQL_Connection.rollback()
 		raise
 
-# Toggle moderator_locked for a Discord user. Single upsert against the lock
-# table now, rather than an UPDATE that used to touch every one of their linked
-# rows at once.                                                                 # CHANGED
+# Toggle moderator_locked for a Discord user. Single upsert against the lock table
 async def Linked_Accounts_Lock_Toggle(SQL_Connection, SQL_Cursor, discord_id, caller_id):
 	"""
 	Returns:
@@ -506,16 +504,17 @@ async def Linked_Accounts_Lock_Toggle(SQL_Connection, SQL_Cursor, discord_id, ca
 		if SQL_Connection.in_transaction:
 			SQL_Connection.commit()
 		SQL_Connection.start_transaction()
-		# Still gated on having at least one linked account, matching the original
-		# behaviour - toggling a lock for someone with nothing linked yet has no
-		# link to act on.                                                        # CHANGED
-		existing_links = Linked_Accounts_Get(SQL_Cursor, discord_id=discord_id, player_id=None, For_Update=True)
-		if not existing_links:
-			SQL_Connection.rollback()
-			return "not_found"
-		currently_locked = Moderator_Locked_Get(SQL_Cursor, discord_id)          # CHANGED
-		new_lock_state = not currently_locked
-		Moderator_Locked_Set(SQL_Cursor, discord_id, new_lock_state)             # CHANGED
+		#existing_links = Linked_Accounts_Get(SQL_Cursor, discord_id=discord_id, player_id=None, For_Update=True)
+		#if not existing_links:
+			#SQL_Connection.rollback()
+			#return "not_found"
+		currently_locked = Moderator_Locked_Get(SQL_Cursor, discord_id)
+		# No row yet for this discord_id -> default action is to add the entry and lock it, rather than toggling an assumed "unlocked" state
+		if currently_locked is None:
+			new_lock_state = True
+		else:
+			new_lock_state = not currently_locked
+		Moderator_Locked_Set(SQL_Cursor, discord_id, new_lock_state)
 		SQL_Connection.commit()
 		return "locked" if new_lock_state else "unlocked"
 	except Exception:

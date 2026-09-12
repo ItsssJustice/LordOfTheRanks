@@ -82,7 +82,7 @@ def Value_Get(SQL_Cursor, source_id, level_id, addition: int = 1, other_points: 
 		SQL_Cursor.execute(sql, (source_id, level_id))
 		row = SQL_Cursor.fetchone()
 		if row is None:
-			return 0
+			return None
 		else:
 			Value = row[0]
 	#Ensure that negative values are handled
