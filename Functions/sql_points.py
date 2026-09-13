@@ -50,7 +50,7 @@ def Points_Transaction_Insert_WOM(SQL_Connection, SQL_Cursor, token_id, member, 
 #SQL Query for enabling or disabling a points token
 def Token_Toggle_Enable(SQL_Connection, SQL_Cursor, author_discord_id, token_id, enabled):
 	# Also ensure created_at is within the allowed number of days
-	sql = "SELECT config_executed FROM bot_config WHERE config_name=%s"
+	sql = "SELECT config_value FROM bot_config WHERE config_name=%s"
 	SQL_Cursor.execute(sql, ("token_id_read_only_days",))
 	row = SQL_Cursor.fetchone()
 	if row is None:
@@ -92,7 +92,7 @@ def Value_Get(SQL_Cursor, source_id, level_id, addition: int = 1, other_points: 
 	return Value
 
 #SQL Query for obtaining a user's points
-async def User_Total_Get(SQL_Connection, SQL_Cursor, discord_id: int = 0):
+def User_Total_Get(SQL_Connection, SQL_Cursor, discord_id: int = 0):
 	if discord_id == 0:
 		return None
 	else:

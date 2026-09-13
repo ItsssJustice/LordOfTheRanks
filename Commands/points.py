@@ -211,6 +211,7 @@ async def Add_WOM_Competition(interaction: discord.Interaction, contribution: ap
 		#interaction. Do not defer or respond to Click_Interaction anywhere above this line.
 		await embed_handling.Update(View, Result_Embed, New_View=View)
 		await Points_Adjust(Click_Interaction, contribution, level, Members, 0, True)
+		sql_wom.WOM_Competition_Points_Assigned(SQL_Connection, SQL_Cursor, competition_id)
 		View.stop()
 
 	async def _Cancel_Clicked(Click_Interaction: discord.Interaction, View):

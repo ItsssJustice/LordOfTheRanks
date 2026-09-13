@@ -120,7 +120,16 @@
     "bot_config": {
         "config_id": "INT PRIMARY KEY AUTO_INCREMENT",
         "config_name": "VARCHAR(255) NOT NULL",
-        "config_executed": "BIGINT DEFAULT 0",
+        "config_value": "BIGINT DEFAULT 0",
         "config_update_time": "DATETIME DEFAULT CURRENT_TIMESTAMP"
+    },
+
+    "bot_timings": {
+        "timing_id": "INT PRIMARY KEY AUTO_INCREMENT",
+        "name": "VARCHAR(255) NOT NULL",
+        "interval_seconds": "INT DEFAULT 0",
+        "offset_seconds": "INT DEFAULT 0",
+        "run_on_startup": "BOOL DEFAULT FALSE",
+        "update_time": "DATETIME DEFAULT CURRENT_TIMESTAMP"
     }
 }

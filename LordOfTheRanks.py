@@ -49,6 +49,7 @@ Command_Namespace = {
 	"tree": tree,
 	"discord": discord,
 	"app_commands": discord.app_commands,
+	"DISCORD_CLIENT": Discord_Client,
 	"DISCORD_GUILD": DISCORD_GUILD,
 	"DISCORD_USER": DISCORD_USER,
 	"DISCORD_NOTIFICATION_CHANNEL_ACCOUNT_LINK": DISCORD_NOTIFICATION_CHANNEL_ACCOUNT_LINK,
@@ -90,25 +91,6 @@ async def on_ready():
 		print(f"Synced {len(synced)} command(s): {[c.name for c in synced]}")
 	except Exception as e:
 		print(f"Sync failed: {e}")
-	#Get guild roles
-	print("Discord : Getting Guild Roles")
-	#Guild_Role_List = await discord_data.Roles_Get(Discord_Client, guild_id=DISCORD_GUILD)
-	print("Discord : Updating Guild Roles")
-	#sql_account_discord.Roles_List_Update(SQL_Connection, SQL_Cursor, Guild_Role_List)
-
-	#Get discord guild members
-	print("Discord : Getting Guild Members")
-	#Discord_Guild_Member_List = discord_data.Members_Get(Discord_Client, guild_id=DISCORD_GUILD);
-	#Update discord guild members in the MySQL Database
-	print("Discord : Updating Guild Members")
-	#sql_account_discord.Members_List_Update(SQL_Connection, SQL_Cursor, Discord_Guild_Member_List)
-	
-	#Get osrs guild members
-	print("WOM : Getting Guild Members")
-	#OSRS_Guild_Member_List = await wom_data.Members_Get(WOM_USER, WOM_TOKEN, WOM_GUILD);
-	#Update osrs guild members in the MySQL Database
-	print("WOM : Updating Guild Members and Roles")
-	#sql_account_osrs.Members_List_And_Roles_List_Update(SQL_Connection, SQL_Cursor, OSRS_Guild_Member_List)
 
 	print("BOT : Attempting to match users")
 	discord_members = sql_account_discord.Members_Get(SQL_Cursor)
@@ -123,6 +105,9 @@ async def on_ready():
 	#Rank votes: re-register open votes' buttons, check the rank ladder against
 	#the server's roles, and start watching for votes whose time is up
 	#await poll_setup.On_Ready(Discord_Client, DISCORD_GUILD)
+
+	#Scheduled tasks: run any run_on_startup blocks immediately
+	await task_scheduler.On_Ready(Command_Namespace)
 
 	#Bot ready to perform async actions on demand
 	print("Bot Ready!")
