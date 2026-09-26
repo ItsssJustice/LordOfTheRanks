@@ -5,18 +5,19 @@
     description="Show the results of a poll",
     guild=discord.Object(id=DISCORD_GUILD)
 )
-@app_commands.describe(label="The poll's nickname")
-async def poll_results(interaction: discord.Interaction, label: str):
-    Record = poll_store.Find(label)
+@app_commands.describe(poll_id="The poll's ID, shown at the bottom of the poll message")
+async def poll_results(interaction: discord.Interaction, poll_id: str):
+    Record = poll_store.Find_By_Key(SQL_Cursor, poll_id)
     if Record is None:
-        Known = poll_store.Labels()
+        Known = [Key for Key, _ in poll_store.Recent_Choices(SQL_Cursor)][:10]
         await interaction.response.send_message(
-            "No poll labelled '% s'. Known polls: % s" % (label, ", ".join(Known) if Known else "none yet"),
+            "No poll with ID '% s'. Recent poll ID(s): % s"
+            % (poll_id, ", ".join(Known) if Known else "none yet"),
             ephemeral=True)
         return
 
     if not poll_store.Is_Closed(Record):
-        Closes = discord.utils.format_dt(discord.utils.parse_time(Record["closes_at"]), "R")
+        Closes = discord.utils.format_dt(poll_store.As_Aware(Record["closes_at"]), "R")
         await interaction.response.send_message(
             "**% s** is still open. Results are shown once voting closes, %s."
             % (Record["question"], Closes), ephemeral=True)
@@ -34,7 +35,7 @@ async def poll_results(interaction: discord.Interaction, label: str):
     await interaction.response.send_message("\n".join(Lines), ephemeral=True)
 
 
-@poll_results.autocomplete("label")
-async def poll_results_label_autocomplete(interaction: discord.Interaction, current: str):
-    return [app_commands.Choice(name=L, value=L)
-            for L in poll_store.Recent_Labels(current)][:25]
+@poll_results.autocomplete("poll_id")
+async def poll_results_id_autocomplete(interaction: discord.Interaction, current: str):
+    return [app_commands.Choice(name=Display, value=Key)
+            for Key, Display in poll_store.Recent_Choices(SQL_Cursor, current)][:25]

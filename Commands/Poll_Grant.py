@@ -1,8 +1,9 @@
 # /pollgrant  --  apply the result of a rank vote to the member it was about.
 #
-# Everything it needs is already on the vote: who it was about, which rank was
-# proposed, and which rank they held when it opened. So it takes none of that as
-# input. It reads the result, and if the vote passed it makes the change.
+# Everything it needs is already on the vote: who it was about, which
+# promotion rank was proposed, and which rank they held when it opened. So it
+# takes none of that as input. It reads the result, and if the vote passed it
+# makes the change.
 #
 # "Passed" means the first answer -- the affirmative -- is the outright winner.
 # A loss, a tie or an empty vote all stop it, and force overrides that.
@@ -13,6 +14,11 @@
 #
 # It never touches the people who voted. Voting for an answer is an opinion about
 # the subject, not a request for the role.
+#
+# The role to grant/remove is resolved from promotion_rank_id_new/current via
+# discord_promotion_ranks -> discord_roles at the moment /pollgrant runs, not
+# from an id frozen when the vote was opened - so if that mapping changes
+# between opening the vote and granting it, this picks up the CURRENT mapping.
 #
 # Two rails, because this changes ranks:
 #   * apply defaults to False, so you get a preview of exactly what would change
@@ -25,19 +31,19 @@
 )
 @app_commands.default_permissions(manage_roles=True)
 @app_commands.describe(
-    label="The vote's nickname",
+    poll_id="The vote's ID, shown at the bottom of the poll message",
     apply="Actually make the change. Leave off for a dry run (default off)",
     force="Apply even though the vote did not pass (default off)"
 )
 async def poll_grant(
     interaction: discord.Interaction,
-    label: str,
+    poll_id: str,
     apply: bool = False,
     force: bool = False
 ):
-    Record = poll_store.Find(label)
+    Record = poll_store.Find_By_Key(SQL_Cursor, poll_id)
     if Record is None:
-        await interaction.response.send_message("No poll labelled '% s'." % label, ephemeral=True)
+        await interaction.response.send_message("No poll with ID '% s'." % poll_id, ephemeral=True)
         return
 
     await interaction.response.defer(ephemeral=True)
@@ -54,10 +60,10 @@ async def poll_grant(
         return
 
     if not poll_store.Is_Closed(Record):
-        Closes = discord.utils.format_dt(discord.utils.parse_time(Record["closes_at"]), "R")
+        Closes = discord.utils.format_dt(poll_store.As_Aware(Record["closes_at"]), "R")
         await interaction.followup.send(
-            "**% s** is still open, closing %s. Close it with `/pollend label:% s` first so the "
-            "result being acted on is final." % (Record["question"], Closes, Record["label"]),
+            "**% s** is still open, closing %s. Close it with `/pollend poll_id:% s` first so the "
+            "result being acted on is final." % (Record["question"], Closes, poll_id),
             ephemeral=True)
         return
 
@@ -70,7 +76,7 @@ async def poll_grant(
     if Record.get("applied_at") and not force:
         await interaction.followup.send(
             "%s\n\nThis vote was already applied by %s. Pass `force:True` to run it again."
-            % (poll_view.Reference(Record), Record.get("applied_by") or "someone"),
+            % (poll_view.Reference(Record), Record.get("applied_name") or "someone"),
             ephemeral=True)
         return
 
@@ -87,13 +93,14 @@ async def poll_grant(
             ephemeral=True)
         return
 
-    Guild = interaction.client.get_guild(Record["guild_id"]) or interaction.guild
+    Guild = interaction.client.get_guild(int(DISCORD_GUILD)) or interaction.guild
 
-    # The rank the vote was about. Fall back to the name in case the role was
-    # deleted and remade, which gives it a new id.
+    # The rank the vote was about. role_id/role_name are resolved fresh from
+    # promotion_rank_id_new by poll_store._Hydrate. Fall back to matching by
+    # name in case the mapped role was deleted and remade under a new id.
     Role = Guild.get_role(Record.get("role_id") or 0)
     if Role is None and Record.get("role_name"):
-        Role = rank_ladder.Find_Role(Guild, Record["role_name"])
+        Role = rank_ladder.Find_Role_By_Name(Guild, Record["role_name"])
     if Role is None:
         await interaction.followup.send(
             "The rank this vote was about (**%s**) no longer exists in this server, so there is "
@@ -105,7 +112,7 @@ async def poll_grant(
     if poll_store.Is_Rank_Vote(Record):
         Old_Role = Guild.get_role(Record.get("from_role_id") or 0)
         if Old_Role is None and Record.get("from_role_name"):
-            Old_Role = rank_ladder.Find_Role(Guild, Record["from_role_name"])
+            Old_Role = rank_ladder.Find_Role_By_Name(Guild, Record["from_role_name"])
 
     Blocker = poll_members.Role_Blocker(Guild, Role, Old_Role)
     if Blocker:
@@ -124,12 +131,14 @@ async def poll_grant(
         sum(c for _, c in Tally), Voter_Count)
     if not Passed:
         Header += "\n_Forced: the vote did not pass._"
-    if Record.get("started_by_name"):
-        Header += "\n_Vote started by %s._" % Record["started_by_name"]
+    if Record.get("author_name"):
+        Header += "\n_Vote started by %s._" % Record["author_name"]
 
-    # Show each rank with its icon, the same way the vote itself did
-    New_Label = rank_ladder.With_Icon(Record.get("role_icon") or "", Role.name)
-    Old_Label = (rank_ladder.With_Icon(Record.get("from_role_icon") or "", Old_Role.name)
+    # Show each rank with its icon, the same way the vote itself did. Looked up
+    # live against the guild now Role/Old_Role are resolved, rather than a
+    # stored value - see poll_store.py's module docstring.
+    New_Label = rank_ladder.With_Icon(rank_ladder.Icon(Guild, Role.name), Role.name)
+    Old_Label = (rank_ladder.With_Icon(rank_ladder.Icon(Guild, Old_Role.name), Old_Role.name)
                  if Old_Role else "")
 
     Adding = Role not in Subject.roles
@@ -156,7 +165,7 @@ async def poll_grant(
             % (Header, Plan_Text, Subject.display_name), ephemeral=True)
         return
 
-    Audit_Reason = "Poll %s passed" % Record["label"]
+    Audit_Reason = "Poll %s passed" % poll_store.Poll_Key_Encode(Record["poll_id"])
     Problems = []
     # Add first: if the removal then fails they are left holding the new rank
     # rather than none at all.
@@ -179,15 +188,15 @@ async def poll_grant(
         return
 
     # Noted so it drops out of the grant list rather than lingering as a choice
-    poll_store.Mark_Applied(Record["label"], interaction.user.display_name)
+    poll_store.Mark_Applied(SQL_Connection, SQL_Cursor, Record["poll_id"], interaction.user.id)
 
     await interaction.followup.send(
         "%s\n\nApplied for **%s**: %s." % (Header, Subject.display_name, Plan_Text), ephemeral=True)
 
 
-@poll_grant.autocomplete("label")
-async def poll_grant_label_autocomplete(interaction: discord.Interaction, current: str):
+@poll_grant.autocomplete("poll_id")
+async def poll_grant_id_autocomplete(interaction: discord.Interaction, current: str):
     # Closed, about somebody, not already applied, newest first. Typing searches
     # the whole history, so an older vote is still reachable.
-    return [app_commands.Choice(name=L, value=L)
-            for L in poll_store.Grantable_Labels(current)][:25]
+    return [app_commands.Choice(name=Display, value=Key)
+            for Key, Display in poll_store.Grantable_Choices(SQL_Cursor, current)][:25]

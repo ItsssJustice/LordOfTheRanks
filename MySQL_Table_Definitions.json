@@ -96,7 +96,6 @@
         "channel_id": "BIGINT NOT NULL",
         "message_id": "BIGINT NULL",
         "author_id": "BIGINT NULL",
-        "label": "VARCHAR(255) NOT NULL",
         "poll_type": "SMALLINT NOT NULL DEFAULT 0",
         "question": "VARCHAR(255) NOT NULL",
         "multiple": "BOOLEAN NOT NULL DEFAULT FALSE",

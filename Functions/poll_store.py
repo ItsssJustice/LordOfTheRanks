@@ -1,260 +1,252 @@
-# Storage for polls and the votes cast in them.
+# Storage for polls and the votes cast in them, backed by SQL (see sql_poll.py
+# for the raw queries against polls / poll_answers / poll_votes).
 #
-# Votes are recorded here rather than by discord. The posted message only ever
-# carries the question and the answer buttons, so a vote reaches this bot as an
-# interaction and is written to a JSON file next to the code.
-#
-# One file, one record per poll:
-#   label, guild_id, channel_id, message_id, question, answers[],
-#   multiple, closes_at (iso8601), closed (bool),
-#   key         short id used in the buttons' custom_id, see New_Key
-#   kind        "generic", "promotion" or "demotion"
-#   subject_id / subject_name   the member the poll is about, or None
-#   role_id / role_name         the rank being voted towards, or None
-#   from_role_id / from_role_name  their rank when the vote opened, or None
-#
-# Names are stored alongside ids so the posted message can be rendered without a
-# guild lookup, and so the record still reads sensibly if a role is later deleted.
-#   created_at / closed_at  when it opened, and when it actually closed
-#   applied_at / applied_by when /pollgrant acted on it, if it has
-#   votes { user_id : [answer indexes] }
+# A "Record" here is a plain dict shaped like the old JSON record, so
+# poll_view.py, poll_format.py and the poll commands barely had to change:
+#   poll_id            the poll's real identity, and its ONLY identity now -
+#                       there is no label any more. Poll_Key_Encode(poll_id)
+#                       is the short, opaque, base64 form of it shown in the
+#                       poll's footer and typed into every command's poll_id
+#                       option; Poll_Key_Decode reverses that.
+#   question / answers[] / multiple / closes_at / closed / created_at /
+#   closed_at / applied_at / applied
+#   poll_type           0 generic, 1 promotion, 2 demotion (see sql_poll)
+#   channel_id / message_id
+#   subject_id / subject_name          the member the poll is about, or None
+#   author_id / author_name            who ran the command that opened it
+#   applied_id / applied_name          who ran /pollgrant on it, if it has been
+#   promotion_rank_id_current / promotion_rank_id_new, and the
+#   role_id / role_name / from_role_id / from_role_name resolved fresh from
+#   them each time (see _Hydrate) - a renamed role shows up immediately,
+#   rather than freezing whatever it was when the poll opened, as the old JSON
+#   copies did. Icons are NOT part of the hydrated Record: they need a live
+#   discord.Role/Guild to look up (see rank_ladder.Icon), which a plain SQL
+#   read has no access to, so callers that need one (rank_vote.py,
+#   Poll_Grant.py) look it up themselves once they hold the Role.
+#   The trade-off with role_id/role_name: a closed-but-not-yet-applied poll
+#   resolves /pollgrant's role to whatever discord_promotion_ranks CURRENTLY
+#   maps that rank to, not necessarily the role that was live when the vote
+#   was opened.
+#   votes { str(discord_id) : [answer_id, ...] }
 
-import os
-import json
-import secrets
+import base64
+import binascii
 import datetime
+from Functions import sql_poll
 
-# The longest a label may be. Labels are shown in slash-command autocomplete,
-# where discord caps a choice name at 100 characters, so that is the real limit.
-# Note a custom server emoji arrives as "<:name:1234567890123456789>", roughly
-# thirty characters, so an emoji in a label eats a lot of this budget.
-LABEL_LIMIT = 100
-
-# How far back the autocompletes look by default. Typing a search term reaches
-# past this, so nothing ever becomes unreachable - it only stops the list being
+# How far back the autocompletes look by default. Typing anything reaches past
+# this, so nothing ever becomes unreachable - it only stops the list being
 # every poll ever held.
 RECENT_DAYS = 30
 
-Store_Path = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "Polls.json")
 
-def Get():
-    if not os.path.isfile(Store_Path):
-        return {}
-    with open(Store_Path, "r", encoding="utf-8") as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
-            print("Polls.json is corrupt, starting from an empty store")
-            return {}
+def Poll_Key_Encode(Poll_Id):
+    """The poll's id, shown at the bottom of the poll and typed into every
+    command as poll_id. Always exactly 8 characters: base64 of the id packed
+    into a fixed 4 bytes (comfortably covers polls.poll_id's INT range), so it
+    neither grows for a big id nor shrinks for a small one.
 
-def _Write(Polls):
-    with open(Store_Path, "w", encoding="utf-8") as f:
-        json.dump(Polls, f, indent=4)
-
-def Find(Label):
-    return Get().get((Label or "").lower())
-
-def New_Key(Polls):
-    """A short id for the buttons to carry.
-
-    The label used to be embedded in each button's custom_id, which discord caps
-    at 100 characters -- so a long label, or one holding a custom emoji, could
-    not be used at all. The buttons now carry this instead, leaving the label
-    free to be whatever reads well.
+    Note the padding character for a small id is 'A', not the digit '0': '0'
+    is itself a real base64 symbol (value 52 in the alphabet), so using it as
+    a distinguishable left-pad character would risk corrupting the decode of
+    a real id whose encoding happens to start with one. 'A' is base64's own
+    symbol for six zero bits, so a leading run of them is unambiguous.
     """
-    Existing = {R.get("key") for R in Polls.values()}
-    while True:
-        Key = secrets.token_hex(3)
-        if Key not in Existing:
-            return Key
+    Raw = int(Poll_Id).to_bytes(4, "big")
+    return base64.urlsafe_b64encode(Raw).decode("ascii")
 
-def Find_By_Key(Key):
-    """The poll whose buttons carry this key."""
-    for Record in Get().values():
-        if Record.get("key") == Key:
-            return Record
-    return None
 
-def Migrate():
-    """Give a key to any record made before keys existed.
-
-    Their buttons were built from the lowercased label, so that is the key they
-    have to keep or the buttons on those messages stop working.
-    """
-    Polls = Get()
-    Changed = False
-    for Store_Key, Record in Polls.items():
-        if not Record.get("key"):
-            Record["key"] = Store_Key
-            Changed = True
-    if Changed:
-        _Write(Polls)
-    return Changed
-
-def Labels():
-    return [R["label"] for R in _Newest_First(Get().values())]
-
-def Mark_Applied(Label, By_Name):
-    """Record that a vote has been acted on, so it drops out of the grant list."""
-    Polls = Get()
-    R = Polls.get(Label.lower())
-    if R is None:
+def Poll_Key_Decode(Key):
+    """The poll_id an 8-character Poll_Key_Encode string represents, or None
+    if it isn't one."""
+    if not Key or len(Key) != 8:
         return None
-    R["applied_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    R["applied_by"] = By_Name
-    _Write(Polls)
-    return R
+    try:
+        Raw = base64.urlsafe_b64decode(Key)
+    except (ValueError, binascii.Error):
+        return None
+    if len(Raw) != 4:
+        return None
+    return int.from_bytes(Raw, "big")
 
-def Ended_At(Record):
-    """When voting actually stopped: the moment it was closed, or its deadline."""
-    return datetime.datetime.fromisoformat(Record.get("closed_at") or Record["closes_at"])
 
-def Started_At(Record):
-    """Records made before created_at existed fall back to their deadline."""
-    return datetime.datetime.fromisoformat(Record.get("created_at") or Record["closes_at"])
+def As_Aware(Value):
+    """A datetime read back from MySQL (naive, but UTC by convention throughout
+    this bot) as a timezone-aware UTC datetime, for discord.utils.format_dt and
+    for comparing against datetime.datetime.now(timezone.utc)."""
+    if Value is None:
+        return None
+    if Value.tzinfo is None:
+        return Value.replace(tzinfo=datetime.timezone.utc)
+    return Value
 
-def _Newest_First(Records):
-    return sorted(Records, key=Started_At, reverse=True)
 
-def Grantable_Labels(Search=""):
-    """Votes /pollgrant could actually act on, newest first.
+def _Hydrate(SQL_Cursor, Row):
+    """Turn a raw `polls` row into the Record dict the rest of the poll code expects."""
+    if Row is None:
+        return None
+    Poll_Id = Row["poll_id"]
 
-    Closed, about somebody, and not already applied. Without a search term this
-    is limited to the last RECENT_DAYS, because otherwise the list grows without
-    end and the useful entry is buried. Typing anything searches the lot, so an
-    older vote is still reachable.
-    """
-    Search = (Search or "").lower()
-    Cutoff = (datetime.datetime.now(datetime.timezone.utc)
-              - datetime.timedelta(days=RECENT_DAYS))
-    Out = []
-    for R in _Newest_First(Get().values()):
-        # Same test /pollgrant applies: a generic poll has no affirmative answer
-        # for it to read, even if an old record happens to name a subject.
-        if not R.get("subject_id") or R.get("applied_at") or not Is_Rank_Vote(R):
-            continue
-        if not Is_Closed(R):
-            continue
-        if Search:
-            if Search not in R["label"].lower() and Search not in R["question"].lower():
-                continue
-        elif Ended_At(R) < Cutoff:
-            continue
-        Out.append(R["label"])
-    return Out
+    Answers = [A["answer_text"] for A in sql_poll.Poll_Answers_Get(SQL_Cursor, Poll_Id)]
 
-def Recent_Labels(Search=""):
-    """Every poll, newest first, trimmed to the recent window when not searching."""
-    Search = (Search or "").lower()
-    Cutoff = (datetime.datetime.now(datetime.timezone.utc)
-              - datetime.timedelta(days=RECENT_DAYS))
-    Out = []
-    for R in _Newest_First(Get().values()):
-        if Search:
-            if Search not in R["label"].lower() and Search not in R["question"].lower():
-                continue
-        elif Started_At(R) < Cutoff:
-            continue
-        Out.append(R["label"])
-    return Out
+    Votes = {}
+    for V in sql_poll.Poll_Votes_Get(SQL_Cursor, Poll_Id):
+        Votes.setdefault(str(V["discord_id"]), []).append(V["answer_id"])
+    for Key in Votes:
+        Votes[Key].sort()
 
-def Open_Labels():
-    return [R["label"] for R in _Newest_First(Get().values()) if not Is_Closed(R)]
+    New_Rank = sql_poll.Promotion_Rank_Get(SQL_Cursor, Row.get("promotion_rank_id_new"))
+    Current_Rank = sql_poll.Promotion_Rank_Get(SQL_Cursor, Row.get("promotion_rank_id_current"))
 
-def Create(Label, Guild_Id, Channel_Id, Question, Answers, Multiple, Hours, Extra=None):
-    Polls = Get()
-    Polls[Label.lower()] = {
-        "label": Label,
-        "key": New_Key(Polls),
-        "guild_id": Guild_Id,
-        "channel_id": Channel_Id,
-        "message_id": None,             # filled in once the message exists
-        "question": Question,
-        "answers": Answers,
-        "multiple": Multiple,
-        "kind": "generic",
-        "subject_id": None,
-        "subject_name": None,
-        "role_id": None,
-        "role_name": None,
-        "from_role_id": None,
-        "from_role_name": None,
-        "closes_at": (datetime.datetime.now(datetime.timezone.utc)
-                      + datetime.timedelta(hours=Hours)).isoformat(),
-        "closed": False,
-        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "closed_at": None,
-        "applied_at": None,
-        "applied_by": None,
-        "votes": {}
-    }
-    if Extra:
-        Polls[Label.lower()].update(Extra)
-    _Write(Polls)
-    return Polls[Label.lower()]
+    Record = dict(Row)
+    Record["answers"] = Answers
+    Record["votes"] = Votes
+    Record["author_name"] = sql_poll.Discord_Member_Name_Get(SQL_Cursor, Row.get("author_id"))
+    Record["subject_name"] = sql_poll.Discord_Member_Name_Get(SQL_Cursor, Row.get("subject_id"))
+    Record["applied_name"] = sql_poll.Discord_Member_Name_Get(SQL_Cursor, Row.get("applied_id"))
+    Record["role_id"] = New_Rank["discord_role_id"] if New_Rank else None
+    Record["role_name"] = New_Rank["discord_role_name"] if New_Rank else None
+    Record["from_role_id"] = Current_Rank["discord_role_id"] if Current_Rank else None
+    Record["from_role_name"] = Current_Rank["discord_role_name"] if Current_Rank else None
+    return Record
+
+
+def Find_By_Id(SQL_Cursor, Poll_Id):
+    return _Hydrate(SQL_Cursor, sql_poll.Poll_Get(SQL_Cursor, Poll_Id))
+
+
+def Find_By_Key(SQL_Cursor, Key):
+    """The poll a Poll_Key_Encode string refers to, or None if it doesn't
+    decode to a real poll. This is what every command uses to resolve its
+    poll_id option."""
+    Poll_Id = Poll_Key_Decode(Key)
+    if Poll_Id is None:
+        return None
+    return Find_By_Id(SQL_Cursor, Poll_Id)
+
+
+def Open_Records(SQL_Cursor):
+    """Every poll still open, hydrated. Used to re-register buttons at start-up."""
+    return [_Hydrate(SQL_Cursor, Row) for Row in sql_poll.Polls_Search(SQL_Cursor, Only_Open=True)]
+
+
+def All_Records(SQL_Cursor):
+    """Every poll, hydrated. Used by the expired-poll closer loop."""
+    return [_Hydrate(SQL_Cursor, Row) for Row in sql_poll.Polls_Search(SQL_Cursor)]
+
 
 def Is_Rank_Vote(Record):
-    return Record.get("kind") in ("promotion", "demotion")
+    return Record.get("poll_type") in (sql_poll.POLL_TYPE_PROMOTION, sql_poll.POLL_TYPE_DEMOTION)
 
-def Attach_Message(Label, Message_Id):
-    Polls = Get()
-    Polls[Label.lower()]["message_id"] = Message_Id
-    _Write(Polls)
+
+def _Choice_Pairs(Rows, Current):
+    """(poll_id_key, display_text) pairs for autocomplete, filtered by Current
+    against either the poll id itself (typing/pasting one straight in) or a
+    word from the question - Current is whatever the user has typed so far.
+    """
+    Current = (Current or "").strip()
+    Out = []
+    for R in Rows:
+        Key = Poll_Key_Encode(R["poll_id"])
+        if Current and Current.lower() not in R["question"].lower() and not Key.startswith(Current):
+            continue
+        Display = ("%s - %s" % (Key, R["question"]))[:100]
+        Out.append((Key, Display))
+    return Out
+
+
+def Grantable_Choices(SQL_Cursor, Current=""):
+    """Votes /pollgrant could actually act on, newest first: closed, about
+    somebody, a rank vote, and not already applied. Without typed text this is
+    limited to the last RECENT_DAYS; typing anything searches the lot, so an
+    older vote is still reachable.
+    """
+    Since = None if (Current or "").strip() else (
+        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=RECENT_DAYS))
+    Rows = sql_poll.Polls_Search(SQL_Cursor, Only_Open=False, Only_Rank_Votes=True,
+                                  Require_Subject=True, Exclude_Applied=True, Since=Since)
+    return _Choice_Pairs(Rows, Current)
+
+
+def Recent_Choices(SQL_Cursor, Current=""):
+    """Every poll, newest first, trimmed to the recent window when not searching."""
+    Since = None if (Current or "").strip() else (
+        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=RECENT_DAYS))
+    Rows = sql_poll.Polls_Search(SQL_Cursor, Since=Since)
+    return _Choice_Pairs(Rows, Current)
+
+
+def Open_Choices(SQL_Cursor, Current=""):
+    Rows = sql_poll.Polls_Search(SQL_Cursor, Only_Open=True)
+    return _Choice_Pairs(Rows, Current)
+
+
+def Create(SQL_Connection, SQL_Cursor, Channel_Id, Author_Id, Question, Answers, Multiple, Hours,
+           Poll_Type=None, Subject_Id=None, Promotion_Rank_Id_Current=None, Promotion_Rank_Id_New=None):
+    Poll_Type = sql_poll.POLL_TYPE_GENERIC if Poll_Type is None else Poll_Type
+    Closes_At = datetime.datetime.utcnow() + datetime.timedelta(hours=Hours)
+    Poll_Id = sql_poll.Poll_Insert(
+        SQL_Connection, SQL_Cursor, Channel_Id, Author_Id, Poll_Type, Question, Answers,
+        Multiple, Closes_At, Subject_Id, Promotion_Rank_Id_Current, Promotion_Rank_Id_New)
+    return Find_By_Id(SQL_Cursor, Poll_Id)
+
+
+def Attach_Message(SQL_Connection, SQL_Cursor, Poll_Id, Message_Id):
+    sql_poll.Poll_Message_Attach(SQL_Connection, SQL_Cursor, Poll_Id, Message_Id)
+
 
 def Is_Closed(Record):
     """Closed either because it was closed by hand, or because its time ran out."""
     if Record.get("closed"):
         return True
-    return datetime.datetime.now(datetime.timezone.utc) >= datetime.datetime.fromisoformat(Record["closes_at"])
+    return datetime.datetime.now(datetime.timezone.utc) >= As_Aware(Record["closes_at"])
 
-def Close(Label):
-    Polls = Get()
-    R = Polls.get(Label.lower())
-    if R is None:
-        return None
-    R["closed"] = True
-    R["closed_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    _Write(Polls)
-    return R
 
-def Record_Vote(Key, User_Id, Answer_Index):
-    """Store one vote, addressed by the key the buttons carry.
+def Close(SQL_Connection, SQL_Cursor, Poll_Id):
+    sql_poll.Poll_Close(SQL_Connection, SQL_Cursor, Poll_Id)
+    return Find_By_Id(SQL_Cursor, Poll_Id)
+
+
+def Mark_Applied(SQL_Connection, SQL_Cursor, Poll_Id, Applied_By_Discord_Id):
+    """Record that a vote has been acted on, so it drops out of the grant list."""
+    sql_poll.Poll_Mark_Applied(SQL_Connection, SQL_Cursor, Poll_Id, Applied_By_Discord_Id)
+    return Find_By_Id(SQL_Cursor, Poll_Id)
+
+
+def Record_Vote(SQL_Connection, SQL_Cursor, Poll_Id, User_Id, Answer_Index):
+    """Store one vote, addressed by poll_id (the buttons carry Poll_Key_Encode(poll_id)).
 
     Returns (accepted, message_for_the_voter).
     """
-    Polls = Get()
-    R = next((Rec for Rec in Polls.values() if Rec.get("key") == Key), None)
-    if R is None:
+    Record = Find_By_Id(SQL_Cursor, Poll_Id)
+    if Record is None:
         return False, "That poll no longer exists."
-    if Is_Closed(R):
+    if Is_Closed(Record):
         return False, "Voting on this poll has closed."
 
-    Key = str(User_Id)
-    Current = R["votes"].get(Key, [])
+    Current = sql_poll.Poll_Vote_Get_For(SQL_Cursor, Poll_Id, User_Id)
 
-    if R["multiple"]:
+    if Record["multiple"]:
         if Answer_Index in Current:
-            Current.remove(Answer_Index)
-            Note = "Removed your vote for **%s**." % R["answers"][Answer_Index]
+            New_Answers = [i for i in Current if i != Answer_Index]
+            Note = "Removed your vote for **%s**." % Record["answers"][Answer_Index]
         else:
-            Current.append(Answer_Index)
-            Note = "Added your vote for **%s**." % R["answers"][Answer_Index]
-        if Current:
-            R["votes"][Key] = sorted(Current)
-        else:
-            R["votes"].pop(Key, None)
+            New_Answers = sorted(Current + [Answer_Index])
+            Note = "Added your vote for **%s**." % Record["answers"][Answer_Index]
     else:
         Previous = Current[0] if Current else None
-        R["votes"][Key] = [Answer_Index]
+        New_Answers = [Answer_Index]
         if Previous == Answer_Index:
-            Note = "You already voted for **%s**. No change." % R["answers"][Answer_Index]
+            Note = "You already voted for **%s**. No change." % Record["answers"][Answer_Index]
         elif Previous is None:
-            Note = "Vote recorded for **%s**." % R["answers"][Answer_Index]
+            Note = "Vote recorded for **%s**." % Record["answers"][Answer_Index]
         else:
-            Note = "Vote changed from **%s** to **%s**." % (R["answers"][Previous],
-                                                            R["answers"][Answer_Index])
-    _Write(Polls)
+            Note = "Vote changed from **%s** to **%s**." % (Record["answers"][Previous],
+                                                            Record["answers"][Answer_Index])
+
+    sql_poll.Poll_Vote_Replace(SQL_Connection, SQL_Cursor, Poll_Id, User_Id, New_Answers)
     return True, Note
+
 
 def Tally(Record):
     """[(answer_text, count)] plus the number of distinct people who voted."""
@@ -264,6 +256,7 @@ def Tally(Record):
             if 0 <= i < len(Counts):
                 Counts[i] += 1
     return list(zip(Record["answers"], Counts)), len(Record["votes"])
+
 
 def Voters_By_Answer(Record):
     """[(answer_text, [user_id, ...])]"""

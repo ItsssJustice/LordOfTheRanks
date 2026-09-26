@@ -1,13 +1,19 @@
 # /pollcreate  --  post a poll into a channel.
 #
 # The poll is a message with one button per answer. A click is an interaction
-# that comes to this bot, and the vote is written to Polls.json. Results are
-# shown once voting closes.
+# that comes to this bot, and the vote is written to the polls/poll_answers/
+# poll_votes tables. Results are shown once voting closes.
+#
+# There is no label to name a poll any more - its poll_id, generated
+# automatically and shown at the bottom of the posted embed (and in this
+# command's own reply), is the only handle it gets. Every other poll command
+# takes that same id back as its poll_id option.
 #
 # This is the plain poll: a question and some answers, nothing more. It carries
-# no subject and no role, so /pollgrant cannot act on it. Anything that changes
-# somebody's rank goes through /startpromotionvote or /startdemotionvote, which
-# are permission-gated; a generic poll may be opened up much more widely.
+# no subject and no promotion rank, so /pollgrant cannot act on it. Anything
+# that changes somebody's rank goes through /startpromotionvote or
+# /startdemotionvote, which are permission-gated; a generic poll may be opened
+# up much more widely.
 #
 # Limits come from discord's component rules: button labels max out at 80
 # characters, and a message carries at most 25 buttons.
@@ -19,7 +25,6 @@
 )
 @app_commands.default_permissions(manage_roles=True)
 @app_commands.describe(
-    label="Short nickname used to fetch results later",
     channel="The channel to post the poll into",
     question="The poll question",
     answers="Options separated by | for example: Yes | No | Abstain",
@@ -28,7 +33,6 @@
 )
 async def poll_create(
     interaction: discord.Interaction,
-    label: str,
     channel: discord.TextChannel,
     question: str,
     answers: str,
@@ -37,13 +41,6 @@ async def poll_create(
 ):
     Answer_List = [O.strip() for O in answers.split("|") if O.strip()]
 
-    if len(label) > poll_store.LABEL_LIMIT:
-        await interaction.response.send_message(
-            "Label must be %d characters or fewer, that one is %d.\nA custom emoji counts for "
-            "about thirty characters on its own, because discord sends it to me as "
-            "`<:name:1234567890123456789>`."
-            % (poll_store.LABEL_LIMIT, len(label)), ephemeral=True)
-        return
     if len(Answer_List) < 2 or len(Answer_List) > 25:
         await interaction.response.send_message(
             "A poll needs between 2 and 25 answers, I counted % d. Separate them with |"
@@ -62,27 +59,25 @@ async def poll_create(
     if hours < 1 or hours > 768:
         await interaction.response.send_message("Duration must be 1 to 768 hours.", ephemeral=True)
         return
-    if poll_store.Find(label):
-        await interaction.response.send_message(
-            "The label '% s' is already in use." % label, ephemeral=True)
-        return
 
-    Record = poll_store.Create(label, interaction.guild_id, channel.id, question,
-                               Answer_List, multiple, hours)
+    Record = poll_store.Create(SQL_Connection, SQL_Cursor, channel.id, interaction.user.id,
+                               question, Answer_List, multiple, hours)
 
     try:
-        Message = await channel.send(embed=poll_view.Build_Embed(Record),
-                                     view=poll_view.Poll_Buttons(Record["key"], Answer_List))
+        Message = await channel.send(
+            embed=poll_view.Build_Embed(Record),
+            view=poll_view.Poll_Buttons(SQL_Connection, SQL_Cursor, Record["poll_id"], Answer_List))
     except discord.Forbidden:
         await interaction.response.send_message(
             "I'm missing permissions in % s. I need 'View Channel' and 'Send Messages' there."
             % channel.mention, ephemeral=True)
         return
 
-    poll_store.Attach_Message(label, Message.id)
+    poll_store.Attach_Message(SQL_Connection, SQL_Cursor, Record["poll_id"], Message.id)
 
+    Key = poll_store.Poll_Key_Encode(Record["poll_id"])
     await interaction.response.send_message(
-        "Poll '% s' posted in % s.\nRead it back later with `/pollresults label:% s`\n%s%s"
-        % (label, channel.mention, label, Message.jump_url,
-           poll_view.Emoji_Warning(interaction.client, label, question, answers)),
+        "Poll `% s` posted in % s.\nRead it back later with `/pollresults poll_id:% s`\n%s%s"
+        % (Key, channel.mention, Key, Message.jump_url,
+           poll_view.Emoji_Warning(interaction.client, question, answers)),
         ephemeral=True)

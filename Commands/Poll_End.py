@@ -9,19 +9,19 @@
     guild=discord.Object(id=DISCORD_GUILD)
 )
 @app_commands.default_permissions(manage_roles=True)
-@app_commands.describe(label="The poll's nickname")
-async def poll_end(interaction: discord.Interaction, label: str):
-    Record = poll_store.Find(label)
+@app_commands.describe(poll_id="The poll's ID, shown at the bottom of the poll message")
+async def poll_end(interaction: discord.Interaction, poll_id: str):
+    Record = poll_store.Find_By_Key(SQL_Cursor, poll_id)
     if Record is None:
-        await interaction.response.send_message("No poll labelled '% s'." % label, ephemeral=True)
+        await interaction.response.send_message("No poll with ID '% s'." % poll_id, ephemeral=True)
         return
     if poll_store.Is_Closed(Record):
         await interaction.response.send_message("That poll is already closed.", ephemeral=True)
         return
 
     await interaction.response.defer(ephemeral=True)
-    Record = poll_store.Close(label)
-    await poll_view.Refresh_Message(interaction.client, Record)
+    Record = poll_store.Close(SQL_Connection, SQL_Cursor, Record["poll_id"])
+    await poll_view.Refresh_Message(SQL_Connection, SQL_Cursor, interaction.client, Record)
 
     Tally, Voter_Count = poll_store.Tally(Record)
     Lines = ["Closed %s" % poll_view.Reference(Record),
@@ -32,7 +32,7 @@ async def poll_end(interaction: discord.Interaction, label: str):
     await interaction.followup.send("\n".join(Lines), ephemeral=True)
 
 
-@poll_end.autocomplete("label")
-async def poll_end_label_autocomplete(interaction: discord.Interaction, current: str):
-    return [app_commands.Choice(name=L, value=L)
-            for L in poll_store.Open_Labels() if current.lower() in L.lower()][:25]
+@poll_end.autocomplete("poll_id")
+async def poll_end_id_autocomplete(interaction: discord.Interaction, current: str):
+    return [app_commands.Choice(name=Display, value=Key)
+            for Key, Display in poll_store.Open_Choices(SQL_Cursor, current)][:25]

@@ -1,9 +1,10 @@
 # The answer buttons and the posted message.
 #
-# Each button carries a custom_id of "poll:<key>:<index>", where key is the short
-# id poll_store hands out. discord.py routes an interaction back here by matching
-# that id, which is what lets the buttons keep working after the bot restarts --
-# see the re-registration in PollTest.py.
+# Each button carries a custom_id of "poll:<key>:<index>", where key is
+# poll_store.Poll_Key_Encode(poll_id) - a short, opaque form of the poll's real
+# id. discord.py routes an interaction back here by matching that id, which is
+# what lets the buttons keep working after the bot restarts -- see the
+# re-registration in poll_setup.On_Ready.
 #
 # The key is deliberately NOT the label. discord caps a custom_id at 100
 # characters, and a label can be long, or hold a custom emoji, which arrives as
@@ -20,6 +21,11 @@
 # The posted message itself is not edited as votes come in. Editing on every
 # click would run into the channel edit rate limit, and it has nothing new to
 # show until voting is over. It is rewritten once, when the poll closes.
+#
+# Answer_Button/Poll_Buttons carry SQL_Connection/SQL_Cursor: a button's
+# callback fires directly off a discord interaction, with no Command_Namespace
+# context to pull them from, so they are threaded through at construction time
+# instead, the same way business-logic calls elsewhere take them as arguments.
 
 import re
 import discord
@@ -89,21 +95,24 @@ def Split_Emoji(Text):
     return (Label[:80] or None), Emoji
 
 class Answer_Button(discord.ui.Button):
-    def __init__(self, Poll_Key, Index, Text, Selected=False):
+    def __init__(self, SQL_Connection, SQL_Cursor, Poll_Id, Index, Text, Selected=False):
         Label, Emoji = Split_Emoji(Text)
         super().__init__(
             label=Label,
             emoji=Emoji,
             style=discord.ButtonStyle.success if Selected else discord.ButtonStyle.secondary,
-            custom_id="poll:%s:%d" % (Poll_Key, Index),
+            custom_id="poll:%s:%d" % (poll_store.Poll_Key_Encode(Poll_Id), Index),
             row=Index // 5
         )
-        self.Poll_Key = Poll_Key
+        self.SQL_Connection = SQL_Connection
+        self.SQL_Cursor = SQL_Cursor
+        self.Poll_Id = Poll_Id
         self.Index = Index
 
     async def callback(self, interaction: discord.Interaction):
-        Accepted, Note = poll_store.Record_Vote(self.Poll_Key, interaction.user.id, self.Index)
-        Record = poll_store.Find_By_Key(self.Poll_Key)
+        Accepted, Note = poll_store.Record_Vote(
+            self.SQL_Connection, self.SQL_Cursor, self.Poll_Id, interaction.user.id, self.Index)
+        Record = poll_store.Find_By_Id(self.SQL_Cursor, self.Poll_Id)
         # Name the poll first: a member can have several open at once, and
         # "Vote changed from Yes to No" alone says nothing about which.
         Lead = (Reference(Record) + "\n") if Record else ""
@@ -119,7 +128,7 @@ class Answer_Button(discord.ui.Button):
 
         Picks = Record["votes"].get(str(interaction.user.id), [])
         Body = "%s%s\n\n%s" % (Lead, Note, Vote_Summary(Record, Picks))
-        View = Poll_Buttons(self.Poll_Key, Record["answers"], Picks)
+        View = Poll_Buttons(self.SQL_Connection, self.SQL_Cursor, self.Poll_Id, Record["answers"], Picks)
 
         if _Is_Private_Copy(interaction):
             await interaction.response.edit_message(content=Body, view=View)
@@ -140,7 +149,7 @@ def Reference(Record):
     Question = Record["question"]
     if len(Question) > 200:
         Question = Question[:197] + "..."
-    return "**%s**  ·  `%s`" % (Question, Strip_Emoji(Record["label"]))
+    return "**%s**  ·  `%s`" % (Question, poll_store.Poll_Key_Encode(Record["poll_id"]))
 
 def Vote_Summary(Record, Picks):
     """One line telling a member what they currently have recorded."""
@@ -154,22 +163,22 @@ def Vote_Summary(Record, Picks):
 class Poll_Buttons(discord.ui.View):
     """The answer buttons. Picks are highlighted, which is only ever used for a
     member's private copy -- the public message passes no picks."""
-    def __init__(self, Poll_Key, Answers, Picks=()):
+    def __init__(self, SQL_Connection, SQL_Cursor, Poll_Id, Answers, Picks=()):
         super().__init__(timeout=None)          # required for a persistent view
         for i, Text in enumerate(Answers[:25]):
-            self.add_item(Answer_Button(Poll_Key, i, Text, Selected=(i in Picks)))
+            self.add_item(Answer_Button(SQL_Connection, SQL_Cursor, Poll_Id, i, Text, Selected=(i in Picks)))
 
 def _Started_By(Record):
-    """Credit line, or "" when the record predates it being kept.
+    """Credit line, or "" when the author is unknown (not in discord_members yet).
 
     Deliberately the only thing said about a rank vote beyond its question and
     answers: the question already names the member and both ranks, and each
     answer names the rank it leads to, so repeating the move again in a field
     was the third telling of the same fact.
     """
-    if not Record.get("started_by_name"):
+    if not Record.get("author_name"):
         return ""
-    return "\n\nVote started by %s" % Record["started_by_name"]
+    return "\n\nVote started by %s" % Record["author_name"]
 
 def Build_Embed(Record):
     """The posted message. Shows the answers while open, the counts once closed."""
@@ -190,16 +199,16 @@ def Build_Embed(Record):
         # Credit and result share one block under the bars, so the blank line
         # above them does not depend on whether a credit line exists.
         Closing = []
-        if Record.get("started_by_name"):
-            Closing.append("Vote started by %s" % Record["started_by_name"])
+        if Record.get("author_name"):
+            Closing.append("Vote started by %s" % Record["author_name"])
         Closing.append("Result: " + (poll_format.Rank_Result(Tally)
                                      if poll_store.Is_Rank_Vote(Record)
                                      else poll_format.Short_Result(Tally)))
         Embed.description = (Heading + "\n\n"
                              + ("\n".join(Lines) if Lines else "_no options_")
                              + "\n\n" + "\n".join(Closing))
-        Embed.set_footer(text="%s  -  voting closed, %d member(s) voted"
-                              % (Strip_Emoji(Record["label"]), Voter_Count))
+        Embed.set_footer(text="ID: %s  -  voting closed, %d member(s) voted"
+                              % (poll_store.Poll_Key_Encode(Record["poll_id"]), Voter_Count))
     else:
         Embed.description = (Heading + "\n\n"
                              + "\n".join("- %s" % Text for Text in Record["answers"])
@@ -210,11 +219,11 @@ def Build_Embed(Record):
                    "and you can change it until voting closes.\n%s answer(s) per person."
                    % ("Multiple" if Record["multiple"] else "One")),
             inline=False)
-        Embed.set_footer(text="%s  -  closes" % Strip_Emoji(Record["label"]))
-        Embed.timestamp = discord.utils.parse_time(Record["closes_at"])
+        Embed.set_footer(text="ID: %s  -  closes" % poll_store.Poll_Key_Encode(Record["poll_id"]))
+        Embed.timestamp = poll_store.As_Aware(Record["closes_at"])
     return Embed
 
-async def Refresh_Message(client, Record):
+async def Refresh_Message(SQL_Connection, SQL_Cursor, client, Record):
     """Rewrite the posted message, e.g. once the poll has closed."""
     if not Record.get("message_id"):
         return
@@ -228,5 +237,6 @@ async def Refresh_Message(client, Record):
         Message = await Channel.fetch_message(Record["message_id"])
     except Exception:
         return
-    View = None if poll_store.Is_Closed(Record) else Poll_Buttons(Record["key"], Record["answers"])
+    View = (None if poll_store.Is_Closed(Record)
+            else Poll_Buttons(SQL_Connection, SQL_Cursor, Record["poll_id"], Record["answers"]))
     await Message.edit(embed=Build_Embed(Record), view=View)
