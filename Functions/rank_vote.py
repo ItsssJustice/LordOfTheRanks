@@ -23,15 +23,12 @@ import discord
 from Functions import sql_poll
 from . import poll_store, poll_view, rank_ladder
 
-
 def Answers(Current_Label, Target_Label):
     """The two answers, each naming the rank it results in.
-
     Order matters: the first answer is the affirmative, and /pollgrant reads it
     as "the vote passed" when it wins.
     """
     return ["Yes - %s" % Target_Label, "No - stay %s" % Current_Label]
-
 
 async def Start(SQL_Connection, SQL_Cursor, client, interaction, Direction, member, channel, hours, Role=None):
     Word = "Promote" if Direction == rank_ladder.PROMOTION else "Demote"
@@ -43,9 +40,7 @@ async def Start(SQL_Connection, SQL_Cursor, client, interaction, Direction, memb
     if member.bot:
         await interaction.response.send_message("Bots don't hold clan ranks.", ephemeral=True)
         return
-
     Guild = interaction.guild
-
     # Their rank now. Reading this does not depend on what channels they can see;
     # roles belong to guild membership.
     Current = rank_ladder.Current_Rank(SQL_Cursor, member)
@@ -55,7 +50,6 @@ async def Start(SQL_Connection, SQL_Cursor, client, interaction, Direction, memb
             "Give them a starting rank first." % (member.display_name, Word.lower()),
             ephemeral=True)
         return
-
     # One step along the ladder, unless a specific rank was named
     if Role is not None:
         Target = Role
@@ -65,7 +59,6 @@ async def Start(SQL_Connection, SQL_Cursor, client, interaction, Direction, memb
     if Problem:
         await interaction.response.send_message(Problem, ephemeral=True)
         return
-
     # Each rank has a matching emote; show it so the vote reads at a glance.
     Current_Icon = rank_ladder.Icon(Guild, Current.name)
     Target_Icon = rank_ladder.Icon(Guild, Target.name)
@@ -73,18 +66,13 @@ async def Start(SQL_Connection, SQL_Cursor, client, interaction, Direction, memb
         Word, member.display_name,
         rank_ladder.With_Icon(Current_Icon, Current.name),
         rank_ladder.With_Icon(Target_Icon, Target.name))
-
-    Answer_List = Answers(rank_ladder.With_Icon(Current_Icon, Current.name),
-                          rank_ladder.With_Icon(Target_Icon, Target.name))
-
+    Answer_List = Answers(rank_ladder.With_Icon(Current_Icon, Current.name), rank_ladder.With_Icon(Target_Icon, Target.name))
     Current_Rank_Id = rank_ladder.Rank_Id_For(SQL_Cursor, Current.id)
     Target_Rank_Id = rank_ladder.Rank_Id_For(SQL_Cursor, Target.id)
-
     Record = poll_store.Create(
         SQL_Connection, SQL_Cursor, channel.id, interaction.user.id, Question, Answer_List,
         False, hours, Poll_Type=Poll_Type, Subject_Id=member.id,
         Promotion_Rank_Id_Current=Current_Rank_Id, Promotion_Rank_Id_New=Target_Rank_Id)
-
     try:
         Message = await channel.send(
             embed=poll_view.Build_Embed(Record),
@@ -94,9 +82,7 @@ async def Start(SQL_Connection, SQL_Cursor, client, interaction, Direction, memb
             "I'm missing permissions in %s. I need 'View Channel' and 'Send Messages' there."
             % channel.mention, ephemeral=True)
         return
-
     poll_store.Attach_Message(SQL_Connection, SQL_Cursor, Record["poll_id"], Message.id)
-
     Kind_Label = "Promotion" if Direction == rank_ladder.PROMOTION else "Demotion"
     Chosen_Note = " (chosen, not the next rank on the ladder)" if Role is not None else ""
     Key = poll_store.Poll_Key_Encode(Record["poll_id"])
