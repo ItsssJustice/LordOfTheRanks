@@ -2,10 +2,23 @@
 	"discord_roles": {
 		"key": "discord_role_id",
 		"rows": [
-			{ "discord_role_id": 0, "discord_role_name": "not in clan", "discord_moderator_level": 0 },
-			{ "discord_role_id": 990043513657884682, "discord_role_name": "Moderator", "discord_moderator_level": 1 },
-			{ "discord_role_id": 989662722847309841, "discord_role_name": "Admin", "discord_moderator_level": 2 },
-			{ "discord_role_id": 992558926388281426, "discord_role_name": "Key", "discord_moderator_level": 3 }
+			{ "discord_role_id": 0, "discord_role_name": "not in clan", "discord_role_icon": "", "discord_moderator_level": 0 },
+			{ "discord_role_id": 990043513657884682, "discord_role_name": "Moderator", "discord_role_icon": "", "discord_moderator_level": 1 },
+			{ "discord_role_id": 989662722847309841, "discord_role_name": "Admin", "discord_role_icon": "", "discord_moderator_level": 2 },
+			{ "discord_role_id": 992558926388281426, "discord_role_name": "Key", "discord_role_icon": "", "discord_moderator_level": 3 },
+			{ "discord_role_id": 1353479890053369886, "discord_role_name": "Infantry", "discord_role_icon": "<:Infantry:1543379984964653118>", "discord_moderator_level": 0 },
+			{ "discord_role_id": 989662722729857035, "discord_role_name": "Recruit", "discord_role_icon": "<:Recruit:1543379469455335515>", "discord_moderator_level": 0 },
+			{ "discord_role_id": 989662722729857036, "discord_role_name": "Corporal", "discord_role_icon": "<:Corporal:1543379448781340762>", "discord_moderator_level": 0 },
+			{ "discord_role_id": 989662722729857037, "discord_role_name": "Sergeant", "discord_role_icon": "<:Sergeant:1543379424009785365>", "discord_moderator_level": 0 },
+			{ "discord_role_id": 1543260465176772669, "discord_role_name": "Cadet", "discord_role_icon": "<:Cadet:1543379399183704094>", "discord_moderator_level": 0 },
+			{ "discord_role_id": 1543260474043408565, "discord_role_name": "Colonel", "discord_role_icon": "<:Colonel:1543379374726848633>", "discord_moderator_level": 0 },
+			{ "discord_role_id": 1132776091900194957, "discord_role_name": "Astral", "discord_role_icon": "<:Astral:1543379328639836270>", "discord_moderator_level": 0 },
+			{ "discord_role_id": 989662722847309835, "discord_role_name": "Trialist", "discord_role_icon": "<:Trialist:1543394167898767390>", "discord_moderator_level": 0 },
+			{ "discord_role_id": 989662722847309837, "discord_role_name": "Lieutenant", "discord_role_icon": "<:Lieutenant:1543378846101799002>", "discord_moderator_level": 0 },
+			{ "discord_role_id": 989662722847309838, "discord_role_name": "Captain", "discord_role_icon": "<:Captain:1543378781840867338>", "discord_moderator_level": 0 },
+			{ "discord_role_id": 989662722847309839, "discord_role_name": "General", "discord_role_icon": "<:General:1543378741869158500>", "discord_moderator_level": 0 },
+			{ "discord_role_id": 989662722847309842, "discord_role_name": "Deputy Owner", "discord_role_icon": "<:DeputyOwner:1543378550525141093>", "discord_moderator_level": 0 },
+			{ "discord_role_id": 990049794078674994, "discord_role_name": "Owner", "discord_role_icon": "<:Owner:1543378522914164756>", "discord_moderator_level": 0 }
 		]
 	},
 
@@ -113,6 +126,15 @@
 			{ "link_id": 24, "promotion_rank_id": 13, "discord_role_id": 992558926388281426}
 		]
 	},
+
+	"poll_type": {
+		"key" : "poll_type_id",
+		"rows": [
+			{"poll_type_id": 0, "poll_type_name": "Generic"},
+			{"poll_type_id": 1, "poll_type_name": "Promotion"},
+			{"poll_type_id": 2, "poll_type_name": "Demotion"}
+		]
+    },
 
 	"bot_config": {
 		"key": "config_id",

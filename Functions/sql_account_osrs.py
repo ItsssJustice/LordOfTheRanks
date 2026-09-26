@@ -111,10 +111,17 @@ def Members_List_And_Roles_List_Update(SQL_Connection, SQL_Cursor, member_data, 
 	]
 	cursor = SQL_Connection.cursor()
 	try:
-		sql = "INSERT INTO osrs_members (player_id, current_rsn, rank_id, join_date, current_member) VALUES (%s, %s, %s, %s, TRUE) ON DUPLICATE KEY UPDATE current_rsn = VALUES(current_rsn), rank_id = VALUES(rank_id), current_member = TRUE, leave_date = NULL"
+		sql = "INSERT INTO osrs_members (player_id, current_rsn, rank_id, join_date, current_member) VALUES (%s, %s, %s, %s, TRUE) ON DUPLICATE KEY UPDATE current_rsn = VALUES(current_rsn), rank_id = VALUES(rank_id), current_member = TRUE"
 		cursor.executemany(sql, rows)
-		SQL_Connection.commit()
 		rowcount = cursor.rowcount
+		# member_data["groupData"]["memberships"] is always WOM's full group roster, regardless
+		# of member_id (which only narrows `entries`/`rows` above) - so anyone in the database
+		# marked current_member = TRUE who isn't in that full list has left the clan.
+		All_Present_Player_Ids = [m["player_id"] for m in member_data["groupData"]["memberships"]]
+		Placeholders = ", ".join(["%s"] * len(All_Present_Player_Ids))
+		Absent_Sql = ("UPDATE osrs_members SET current_member = FALSE WHERE current_member = TRUE AND player_id NOT IN (%s)" % Placeholders)
+		cursor.execute(Absent_Sql, tuple(All_Present_Player_Ids))
+		SQL_Connection.commit()
 	except MySQLError:
 		SQL_Connection.rollback()
 		raise

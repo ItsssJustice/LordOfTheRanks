@@ -54,9 +54,9 @@ async def poll_create(
         await interaction.response.send_message(
             "Answers max out at 80 characters: " + ", ".join(Too_Long), ephemeral=True)
         return
-    if len(question) > 256:
+    if len(question) > 255:
         await interaction.response.send_message(
-            "The question must be 256 characters or fewer, that one is %d." % len(question),
+            "The question must be 255 characters or fewer, that one is %d." % len(question),
             ephemeral=True)
         return
     if hours < 1 or hours > 768:

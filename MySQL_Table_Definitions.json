@@ -13,6 +13,7 @@
     "discord_roles": {
         "discord_role_id": "BIGINT PRIMARY KEY",
         "discord_role_name": "VARCHAR(255)",
+        "discord_role_icon": "VARCHAR(255)",
         "discord_moderator_level": "SMALLINT DEFAULT 0"
     },
 
@@ -39,7 +40,7 @@
        "is_main_account": "BOOLEAN NOT NULL DEFAULT FALSE"
     },
 
-       "link_discord_osrs_members_moderator_locked": {
+    "link_discord_osrs_members_moderator_locked": {
        "discord_id": "BIGINT PRIMARY KEY",
        "moderator_locked": "BOOLEAN DEFAULT FALSE"
     },
@@ -90,16 +91,44 @@
         "points": "INT NOT NULL"
     },
 
-    "promotion_polls": {
+    "polls": {
         "poll_id": "INT PRIMARY KEY AUTO_INCREMENT",
-        "discord_id": "BIGINT NOT NULL",
-        "created_by_discord_id": "BIGINT NULL",
-        "vote_passed": "BOOLEAN DEFAULT FALSE",
-        "vote_actioned": "BOOLEAN DEFAULT FALSE",
-        "rank_previous": "SMALLINT NOT NULL",
-        "rank_new": "SMALLINT NOT NULL",
+        "channel_id": "BIGINT NOT NULL",
+        "message_id": "BIGINT NULL",
+        "author_id": "BIGINT NULL",
+        "label": "VARCHAR(255) NOT NULL",
+        "poll_type": "SMALLINT NOT NULL DEFAULT 0",
+        "question": "VARCHAR(255) NOT NULL",
+        "multiple": "BOOLEAN NOT NULL DEFAULT FALSE",
+        "subject_id": "BIGINT NULL",
+        "promotion_rank_id_current": "SMALLINT NULL",
+        "promotion_rank_id_new": "SMALLINT NULL",
         "created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP",
-        "closed_at": "DATETIME NULL"
+        "closes_at": "DATETIME NOT NULL",
+        "closed": "BOOLEAN NOT NULL DEFAULT FALSE",        
+        "closed_at": "DATETIME NULL",
+        "applied_at": "DATETIME NULL",
+        "applied_id": "BIGINT NULL",
+        "applied": "BOOLEAN NOT NULL DEFAULT FALSE"
+    },
+
+    "poll_type": {
+        "poll_type_id" : "SMALLINT PRIMARY KEY",
+        "poll_type_name": "VARCHAR(255) NOT NULL"
+    },
+
+    "poll_answers": {
+        "response_id": "BIGINT PRIMARY KEY AUTO_INCREMENT",
+        "poll_id": "INT NOT NULL",
+        "answer_id": "SMALLINT NOT NULL",
+        "answer_text": "VARCHAR(80) NOT NULL"
+    },
+
+    "poll_votes": {
+        "vote_id": "BIGINT PRIMARY KEY AUTO_INCREMENT",
+        "poll_id": "INT NOT NULL",
+        "discord_id": "BIGINT NOT NULL",
+        "answer_id": "SMALLINT NOT NULL"
     },
 
     "discord_promotion_ranks": {
