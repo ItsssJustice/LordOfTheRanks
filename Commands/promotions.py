@@ -143,6 +143,9 @@ async def Promotion_Start(SQL_Connection, SQL_Cursor, client, interaction, Direc
 		return
 	poll_store.Attach_Message(SQL_Connection, SQL_Cursor, Record["poll_id"], Message.id)
 	Kind_Label = "Promotion" if Direction == rank_ladder.PROMOTION else "Demotion"
+	# The vote can still run, but say now if the bot won't be able to apply it
+	Blocker = poll_members.Role_Blocker(Guild, Target, Current)
+	Blocker_Note = ("\n\n**Heads up:** I won't be able to apply this if it passes. %s" % Blocker) if Blocker else ""
 	Chosen_Note = " (chosen, not the next rank on the ladder)" if Role is not None else ""
 	Key = poll_store.Poll_Key_Encode(Record["poll_id"])
 	if Promotion_Is_Automatic(SQL_Cursor, Record):
@@ -156,7 +159,7 @@ async def Promotion_Start(SQL_Connection, SQL_Cursor, client, interaction, Direc
 		   member.display_name,
 		   rank_ladder.With_Icon(Current_Icon, Current.name),
 		   rank_ladder.With_Icon(Target_Icon, Target.name),
-		   Chosen_Note, Key, Apply_Note, Message.jump_url),
+		   Chosen_Note, Key, Apply_Note, Message.jump_url) + Blocker_Note,
 		ephemeral=True)
 
 # ---------------------------------------------------------------------------
@@ -230,6 +233,10 @@ async def Promotion_Grant_Apply(SQL_Connection, SQL_Cursor, Guild, Record, Appli
 	Removing = Old_Role is not None and Old_Role in Subject.roles
 	Base.update({"subject": Subject, "role": Role, "old_role": Old_Role, "new_label": New_Label, "old_label": Old_Label})
 	if not Adding and not Removing:
+		# Already in the state the vote asked for, so it's settled - marked applied
+		# so it drops out of the grant lists
+		if Apply_Changes:
+			Record = poll_store.Mark_Applied(SQL_Connection, SQL_Cursor, Record["poll_id"], Applied_Id)
 		return Promotion_Grant_Result("nothing_to_do", Record, **Base)
 	Plan = []
 	if Adding:
@@ -307,7 +314,7 @@ def Promotion_Grant_Text(Result):
 	if Record.get("author_name"):
 		Header += "\n_Vote started by %s._" % Record["author_name"]
 	if Code == "nothing_to_do":
-		return ("%s\n\n**%s** already holds **%s**%s. Nothing to do."
+		return ("%s\n\n**%s** already holds **%s**%s. Nothing to do, so it's been marked as applied."
 				% (Header, Promotion_Subject_Name(Result), Result["new_label"],
 				   " and no longer holds the old rank" if Result["old_role"] else ""))
 	elif Code == "dry_run":

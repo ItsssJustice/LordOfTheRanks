@@ -116,9 +116,11 @@ def Poll_Vote_Replace(SQL_Connection, SQL_Cursor, Poll_Id, Discord_Id, Answer_Id
 #   Only_Rank_Votes   limit to poll_type IN (PROMOTION, DEMOTION)
 #   Require_Subject   subject_id IS NOT NULL
 #   Exclude_Applied   applied = FALSE
+#   Only_Passed       the first answer ("Yes" on a rank vote) has strictly more
+#                     votes than the second - the same test granting uses
 #   Since             only polls created_at >= this datetime
 def Polls_Search(SQL_Cursor, Only_Open=None, Only_Rank_Votes=False,
-                  Require_Subject=False, Exclude_Applied=False, Since=None):
+                  Require_Subject=False, Exclude_Applied=False, Since=None, Only_Passed=False):
     Where = []
     Params = []
     if Only_Open is not None:
@@ -139,6 +141,9 @@ def Polls_Search(SQL_Cursor, Only_Open=None, Only_Rank_Votes=False,
         Where.append("subject_id IS NOT NULL")
     if Exclude_Applied:
         Where.append("applied = FALSE")
+    if Only_Passed:
+        Where.append("(SELECT COUNT(*) FROM poll_votes AS v WHERE v.poll_id = polls.poll_id AND v.answer_id = 0)"
+                     " > (SELECT COUNT(*) FROM poll_votes AS v WHERE v.poll_id = polls.poll_id AND v.answer_id = 1)")
     if Since is not None:
         Where.append("created_at >= %s")
         Params.append(Since)
@@ -168,20 +173,17 @@ def Rank_Vote_Open_For_Subject_Get(SQL_Cursor, Subject_Id):
 # Rank ladder support (discord_promotion_ranks / discord_roles)
 # ---------------------------------------------------------------------------
 
-# The rank-vote ladder, highest rank first, excluding promotion_rank_id 0
-# ("not in clan" - not a rank to vote onto or off of).
+# Every rank a vote can involve, highest promotion_rank_id first, excluding
+# promotion_rank_id 0 ("not in clan" - not a rank to vote onto or off of).
 #
-# Ordered by promotion_rank_id itself, NOT promotion_rank_id_progression.
-# promotion_rank_id_progression is the automatic points-promotion system's own
-# "next rank" pointer (see sql_account_discord.py / the points system) and does
-# NOT reproduce the manual vote ladder faithfully against the current default
-# data: it skips Astral between Colonel and Trialist (Colonel's progression
-# points straight at Trialist), and it ties General and Deputy Owner at the
-# same value. promotion_rank_id itself ascends 1..13 with no gaps or ties and
-# reproduces the old hardcoded LADDER list exactly, id for id.
+# The ORDER here only decides which rank wins when a member holds several.
+# Which rank a promotion or demotion leads to comes from
+# promotion_rank_id_progression, each rank's pointer to its next rank - see
+# rank_ladder.py.
 def Promotion_Rank_Ladder_Get(SQL_Cursor):
     Query = """
-        SELECT dpr.promotion_rank_id, dpr.discord_role_id, dr.discord_role_name
+        SELECT dpr.promotion_rank_id, dpr.discord_role_id, dr.discord_role_name,
+               dpr.promotion_rank_id_progression
         FROM discord_promotion_ranks AS dpr
         JOIN discord_roles AS dr ON dr.discord_role_id = dpr.discord_role_id
         WHERE dpr.promotion_rank_id > 0

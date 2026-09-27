@@ -227,10 +227,14 @@ async def Grant(interaction: discord.Interaction, poll_id: str, apply: bool = Fa
 	Adding = Role not in Subject.roles
 	Removing = Old_Role is not None and Old_Role in Subject.roles
 	if not Adding and not Removing:
+		#Already in the state the vote asked for, so it's settled - marked applied so it drops out of the grant lists
+		if apply:
+			poll_store.Mark_Applied(SQL_Connection, SQL_Cursor, Record["poll_id"], interaction.user.id)
 		await interaction.followup.send(
-			"%s\n\n**%s** already holds **%s**%s. Nothing to do."
+			"%s\n\n**%s** already holds **%s**%s. Nothing to do%s."
 			% (Header, Subject.display_name, New_Label,
-			   " and no longer holds the old rank" if Old_Role else ""), ephemeral=True)
+			   " and no longer holds the old rank" if Old_Role else "",
+			   ", so it's been marked as applied" if apply else ""), ephemeral=True)
 		return
 	Plan = []
 	if Adding:

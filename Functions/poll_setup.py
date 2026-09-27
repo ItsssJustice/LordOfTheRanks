@@ -12,7 +12,7 @@
 # started once only, even though discord fires on_ready again on reconnects.
 
 import asyncio
-from . import poll_store, poll_view, rank_ladder, discord_connection
+from . import poll_store, poll_view, rank_ladder, poll_members, discord_connection
 
 _Closer_Started = False
 
@@ -47,13 +47,26 @@ def Report_Ladder(SQL_Cursor, client, Guild_Id):
         print("Could not read guild % s, skipping the rank ladder check" % Guild_Id)
         return
     Missing = rank_ladder.Missing_Roles(SQL_Cursor, Guild)
-    print("Rank ladder (highest first):")
+    print("Rank ladder (each rank -> where a promotion leads):")
     print(rank_ladder.Describe(SQL_Cursor, Guild))
     if Missing:
         print("WARNING: % d ladder rank(s) have no matching role: % s"
               % (len(Missing), ", ".join(Missing)))
         print("Votes towards those will fail. Check discord_promotion_ranks' discord_role_id "
               "values against Server Settings > Roles.")
+    # A bot can only give or remove roles below its own highest role, whatever its
+    # permissions - so say at start-up which ranks it won't be able to apply
+    Blocked = []
+    for Rank in rank_ladder.Ladder_Get(SQL_Cursor):
+        Role = rank_ladder.Find_Role(Guild, Rank["discord_role_id"])
+        Reason = poll_members.Role_Blocker(Guild, Role) if Role is not None else None
+        if Reason:
+            Blocked.append(Reason)
+    if Blocked:
+        print("WARNING: %d rank(s) can't be assigned by the bot, so votes onto or off them "
+              "won't apply:" % len(Blocked))
+        for Reason in Blocked:
+            print("  - " + Reason)
 
 async def Close_Expired_Polls(SQL_Connection, SQL_Cursor, client, Guild_Id, On_Poll_Closed=None):
     """Publish the result of any vote whose deadline has passed, then pass it to

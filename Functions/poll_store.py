@@ -140,31 +140,31 @@ def Is_Rank_Vote(Record):
 
 
 def _Choice_Pairs(Rows, Current):
-    """(poll_id_key, display_text) pairs for autocomplete, filtered by Current
-    against either the poll id itself (typing/pasting one straight in) or a
-    word from the question - Current is whatever the user has typed so far.
+    """(poll_id_key, display_text) pairs for autocomplete. Only the poll id is
+    shown, and Current - whatever the user has typed so far - filters by the
+    start of the id, ignoring case.
     """
-    Current = (Current or "").strip()
+    Current = (Current or "").strip().lower()
     Out = []
     for R in Rows:
         Key = Poll_Key_Encode(R["poll_id"])
-        if Current and Current.lower() not in R["question"].lower() and not Key.startswith(Current):
+        if Current and not Key.lower().startswith(Current):
             continue
-        Display = ("%s - %s" % (Key, R["question"]))[:100]
-        Out.append((Key, Display))
+        Out.append((Key, Key))
     return Out
 
 
 def Grantable_Choices(SQL_Cursor, Current=""):
-    """Votes /pollgrant could actually act on, newest first: closed, about
-    somebody, a rank vote, and not already applied. Without typed text this is
-    limited to the last RECENT_DAYS; typing anything searches the lot, so an
-    older vote is still reachable.
+    """Votes still waiting to be applied by hand, newest first: closed rank
+    votes about somebody that passed and haven't been applied. Votes that
+    didn't pass are left out, as are ones the bot applied automatically when
+    they closed. Without typed text this is limited to the last RECENT_DAYS;
+    typing anything searches the lot, so an older vote is still reachable.
     """
     Since = None if (Current or "").strip() else (
         datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=RECENT_DAYS))
     Rows = sql_poll.Polls_Search(SQL_Cursor, Only_Open=False, Only_Rank_Votes=True,
-                                  Require_Subject=True, Exclude_Applied=True, Since=Since)
+                                  Require_Subject=True, Exclude_Applied=True, Since=Since, Only_Passed=True)
     return _Choice_Pairs(Rows, Current)
 
 
