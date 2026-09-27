@@ -7,11 +7,15 @@ from Functions import sql_account_osrs
 from Functions import sql_account_link
 from Functions import wom_data
 from Functions import discord_data
+from Functions import discord_connection
 
 # Fixed reference point every timing's grid is measured from. Any constant works as long as
 # it never changes - Unix epoch is the obvious, restart-safe choice, since it needs no storage
 # and is identical on every machine this ever runs on.
 _EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+
+# The scheduler loop is started once per process, however many times on_ready fires
+_Loop_Started = False
 
 async def On_Ready(Command_Namespace):
     """Call once from on_ready. Runs every run_on_startup block immediately, once, regardless
@@ -22,6 +26,10 @@ async def On_Ready(Command_Namespace):
     every function in this file's call chain having to be updated whenever a new one is added
     to Command_Namespace.
     """
+    global _Loop_Started
+    if _Loop_Started:
+        return
+    _Loop_Started = True
     await Scheduled_Tasks(Command_Namespace, Initial_Startup=True)
     Command_Namespace["DISCORD_CLIENT"].loop.create_task(Scheduled_Task_Loop(Command_Namespace))
 
@@ -29,8 +37,9 @@ async def Scheduled_Task_Loop(Command_Namespace):
     client = Command_Namespace["DISCORD_CLIENT"]
     SQL_Cursor = Command_Namespace["SQL_Cursor"]
 
-    await client.wait_until_ready()
-    while not client.is_closed():
+    # Runs for the life of the process, pausing while discord_connection restarts the client
+    while True:
+        await discord_connection.Wait_Until_Connected(client)
         try:
             await Scheduled_Tasks(Command_Namespace)
         except Exception as Error:

@@ -1,3 +1,5 @@
+import discord
+
 #Fetch all roles in a guild
 async def Roles_Get(client: discord.Client, guild_id: int) -> list[dict]:
     Guild = client.get_guild(int(guild_id))

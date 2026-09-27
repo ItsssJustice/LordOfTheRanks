@@ -1,3 +1,4 @@
+from mysql.connector import Error as MySQLError
 from Functions import sql_config
 from Functions import sql_account_link
 import difflib

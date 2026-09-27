@@ -4,16 +4,19 @@
 # touches the core in one place: a single awaited call from on_ready. Nothing
 # else about the bot has to know these commands exist.
 #
-# NOTE: as of this SQL migration, the call to On_Ready in LordOfTheRanks.py's
-# on_ready() is still commented out (it was already commented out before this
-# change, so button re-registration after a restart and the expired-poll
-# closer loop are both still dormant). Uncomment it there, passing
-# SQL_Connection and SQL_Cursor, to actually run this.
+# The expired-poll closer also hands every poll it closes to On_Poll_Closed, a
+# callback supplied by LordOfTheRanks.py (Commands/promotions.py's
+# Promotion_On_Poll_Closed), which applies passed demotions and promotions onto
+# automatic ranks. The grant code stays in the command file; this module only
+# knows there is something to call. That makes this loop load-bearing, so it is
+# started once only, even though discord fires on_ready again on reconnects.
 
 import asyncio
-from . import poll_store, poll_view, rank_ladder
+from . import poll_store, poll_view, rank_ladder, discord_connection
 
-async def On_Ready(SQL_Connection, SQL_Cursor, client, Guild_Id):
+_Closer_Started = False
+
+async def On_Ready(SQL_Connection, SQL_Cursor, client, Guild_Id, On_Poll_Closed=None):
     """Call once from on_ready.
 
     Re-registers the buttons on votes that are still open, reports the rank
@@ -31,7 +34,10 @@ async def On_Ready(SQL_Connection, SQL_Cursor, client, Guild_Id):
 
     # Their duration is enforced here rather than by discord, since this bot
     # holds the votes
-    client.loop.create_task(Close_Expired_Polls(SQL_Connection, SQL_Cursor, client))
+    global _Closer_Started
+    if not _Closer_Started:
+        _Closer_Started = True
+        client.loop.create_task(Close_Expired_Polls(SQL_Connection, SQL_Cursor, client, Guild_Id, On_Poll_Closed))
 
 def Report_Ladder(SQL_Cursor, client, Guild_Id):
     """Print the ladder against the server's roles, so a renamed or missing rank
@@ -49,17 +55,22 @@ def Report_Ladder(SQL_Cursor, client, Guild_Id):
         print("Votes towards those will fail. Check discord_promotion_ranks' discord_role_id "
               "values against Server Settings > Roles.")
 
-async def Close_Expired_Polls(SQL_Connection, SQL_Cursor, client):
-    """Publish the result of any vote whose deadline has passed."""
-    await client.wait_until_ready()
-    while not client.is_closed():
+async def Close_Expired_Polls(SQL_Connection, SQL_Cursor, client, Guild_Id, On_Poll_Closed=None):
+    """Publish the result of any vote whose deadline has passed, then pass it to
+    On_Poll_Closed(client, Guild, Record) if one was given."""
+    # Runs for the life of the process: if Discord drops and discord_connection
+    # restarts the client, this waits for it to be ready again rather than ending.
+    while True:
+        await discord_connection.Wait_Until_Connected(client)
         try:
-            for Record in poll_store.All_Records(SQL_Cursor):
+            for Record in poll_store.Expired_Unclosed_Records(SQL_Cursor):
                 if Record.get("closed") or not poll_store.Is_Closed(Record):
                     continue
                 print("Poll '% s' reached its deadline, closing" % poll_store.Poll_Key_Encode(Record["poll_id"]))
                 Closed_Record = poll_store.Close(SQL_Connection, SQL_Cursor, Record["poll_id"])
                 await poll_view.Refresh_Message(SQL_Connection, SQL_Cursor, client, Closed_Record)
+                if On_Poll_Closed is not None:
+                    await On_Poll_Closed(client, client.get_guild(int(Guild_Id)), Closed_Record)
         except Exception as Error:
             print("Poll closer hit an error: % r" % Error)
         await asyncio.sleep(60)

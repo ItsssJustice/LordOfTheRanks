@@ -146,6 +146,14 @@ def Polls_Search(SQL_Cursor, Only_Open=None, Only_Rank_Votes=False,
     Query = "SELECT %s FROM polls %s ORDER BY created_at DESC" % (_POLL_COLUMNS, Where_Sql)
     return sql_config.Query_Dicts_Get(SQL_Cursor, Query, tuple(Params)) or []
 
+# Polls whose deadline has passed but that haven't been closed yet - what the
+# expired-poll closer loop (poll_setup.Close_Expired_Polls) needs each minute,
+# rather than every poll ever held. Deadline compared against Python's UTC clock,
+# for the same reason as Polls_Search.
+def Polls_Expired_Unclosed_Get(SQL_Cursor):
+    Query = "SELECT %s FROM polls WHERE closed = FALSE AND closes_at <= %%s ORDER BY closes_at" % _POLL_COLUMNS
+    return sql_config.Query_Dicts_Get(SQL_Cursor, Query, (datetime.datetime.utcnow(),)) or []
+
 # ---------------------------------------------------------------------------
 # Rank ladder support (discord_promotion_ranks / discord_roles)
 # ---------------------------------------------------------------------------

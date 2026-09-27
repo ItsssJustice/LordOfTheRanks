@@ -6,6 +6,7 @@
         "name_display": "VARCHAR(255) NOT NULL",
         "name_nick": "VARCHAR(255) NOT NULL",
         "promotion_rank_id": "SMALLINT DEFAULT 0",
+        "promotion_rank_updated_at": "DATETIME NULL",
         "discriminator": "INT",
         "created_at": "DATETIME DEFAULT CURRENT_TIMESTAMP"
     },

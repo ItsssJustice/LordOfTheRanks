@@ -1,9 +1,16 @@
+import datetime
+
 #Get the points sources for interactions
 Points_Sources = sql_points.Sources_Get(SQL_Cursor)
 #remove the source_id = 1 entry (bot configuration)
 Points_Sources = [Source for Source in Points_Sources if Source["source_id"] != 1]
 
+#WOM competitions whose payout is running right now. Guards against two moderators confirming the
+#same competition at once, since points_assigned is only set once the points have been added.
+WOM_Competitions_Paying = set()
+
 #Management of points adjustment for a single, or multiple discord members via the generation of tokens
+#Returns the number of transactions created on success, or None if no points were added
 async def Points_Adjust(interaction: discord.Interaction, contribution: app_commands.Choice[int], level: app_commands.Choice[int], member: discord.Member | list[discord.Member], other_points: int, addition: bool) -> None:
 	#Verify user is a moderator to change another player's points
 	if not sql_account_discord.Discord_Moderator_Command_Permitted(SQL_Cursor, interaction.user.id, 1):
@@ -26,7 +33,8 @@ async def Points_Adjust(interaction: discord.Interaction, contribution: app_comm
 	level_id = level.value
 	level_name = level.name
 	action_word = "Awarded" if addition > 0 else "Deducted"
-	manual_assignment = False if awarded_by == bot_config.env_get("DISCORD_USER") else True
+	#env_get returns a string, so compare the ids as strings
+	manual_assignment = False if str(awarded_by) == bot_config.env_get("DISCORD_USER") else True
 	#Determine points value
 	Points_Value = sql_points.Value_Get(SQL_Cursor, source_id, level_id, addition, other_points)
 	if Points_Value is not None:
@@ -38,20 +46,21 @@ async def Points_Adjust(interaction: discord.Interaction, contribution: app_comm
 			User_Lines = members[0].mention
 		else:
 			User_Lines = "\n".join("- %s" % m.mention for m in members)
-			Embed = embed_handling.Build(
+		Embed = embed_handling.Build(
 			title="Points %s" % action_word,
 			colour=discord.Colour.green() if addition else discord.Colour.red(),
 			fields=[
-					("%s by" % action_word, "<@%d>" % awarded_by, True),
-					("Token ID", "%d" % (Token_ID), True),
-					("Transactions", "%d" % (Transactions), True),
-					("Points", str(Points_Value), True),
-					("Source", "%s" % (source_name), True),
-					("Tier", "%s" % (level_name), True),
-					("User(s)", User_Lines, False),
-				]
-			)
-			await embed_handling.Send(interaction, Embed)
+				("%s by" % action_word, "<@%d>" % awarded_by, True),
+				("Token ID", "%d" % (Token_ID), True),
+				("Transactions", "%d" % (Transactions), True),
+				("Points", str(Points_Value), True),
+				("Source", "%s" % (source_name), True),
+				("Tier", "%s" % (level_name), True),
+				("User(s)", User_Lines, False),
+			]
+		)
+		await embed_handling.Send(interaction, Embed)
+		return Transactions
 	else:
 		Embed = embed_handling.Build(
 			title="Points Adjustment Failed",
@@ -60,6 +69,16 @@ async def Points_Adjust(interaction: discord.Interaction, contribution: app_comm
 		)
 		await embed_handling.Send(interaction, Embed, ephemeral=True)
 		return
+
+#Set points_assigned for a competition once its points are added, retrying once. True on success
+def _WOM_Competition_Flag_Paid(Competition_Id):
+	for Attempt in range(2):
+		try:
+			if sql_wom.WOM_Competition_Points_Assigned(SQL_Connection, SQL_Cursor, Competition_Id):
+				return True
+		except Exception as Error:
+			print("Points : couldn't flag competition %s as paid (attempt %d): %r" % (Competition_Id, Attempt + 1, Error))
+	return sql_wom.WOM_Competition_Points_Assigned_Get(SQL_Cursor, Competition_Id)
 
 async def Add_WOM_Competition(interaction: discord.Interaction, contribution: app_commands.Choice[int], level: app_commands.Choice[int], contribution_threshold: int = 0, competition_id: int = None):
 	#Verify user is a moderator to change another player's points
@@ -79,16 +98,48 @@ async def Add_WOM_Competition(interaction: discord.Interaction, contribution: ap
 	#exceed Discord's 3-second interaction response window, which invalidates
 	#the interaction token before we'd otherwise get a chance to respond
 	await interaction.response.defer(ephemeral=True)
-	#Gather the requested competition data
-	Competition_Data = await wom_data.Competition_Get(WOM_USER, WOM_TOKEN, WOM_GUILD, competition_id, contribution_threshold)
+	#Gather the requested competition data - no competition_id means the homeland group's
+	#most recently finished competition. Either way WOM confirms it belongs to the group.
+	Competition_Data = await wom_data.Competition_Get(WOM_USER, WOM_TOKEN, WOM_GUILD, competition_id or None, contribution_threshold)
 	competition = Competition_Data["competition"]
-	if not competition:
-		Embed = embed_handling.Build(title="No Competition Found", colour=discord.Colour.red())
+	Lookup_Error = Competition_Data.get("error")
+	if Lookup_Error is not None or not competition:
+		if Lookup_Error == "not_found":
+			Title, Text = "Competition Not Found", "WOM has no competition with id `%s`." % competition_id
+		elif Lookup_Error == "not_in_group":
+			Title, Text = "Not A Homeland Competition", "Competition `%s` isn't one of the clan's WOM competitions, so no points can be assigned for it." % competition_id
+		elif Lookup_Error == "none_finished":
+			Title, Text = "No Finished Competition", "The clan has no finished WOM competition to assign points for."
+		else:
+			Title, Text = "WOM Unavailable", "Couldn't get the competition from Wise Old Man, please try again shortly."
+		Embed = embed_handling.Build(title=Title, description=Text, colour=discord.Colour.red())
+		await embed_handling.Send(interaction, Embed, ephemeral=True)
+		return
+	#Results can still change until it ends, so only finished competitions are paid out
+	if not competition["finished"]:
+		Ends_At = datetime.datetime.fromisoformat(competition["ends_at"])
+		Embed = embed_handling.Build(
+			title="Competition Not Finished",
+			description="**%s** hasn't finished yet. It ends %s - points can be assigned after that."
+				% (competition["title"], discord.utils.format_dt(Ends_At, "R")),
+			colour=discord.Colour.red()
+		)
 		await embed_handling.Send(interaction, Embed, ephemeral=True)
 		return
 	results = competition["results"]
 	if not results:
 		Embed = embed_handling.Build(title="No Results Found", colour=discord.Colour.red())
+		await embed_handling.Send(interaction, Embed, ephemeral=True)
+		return
+	#The real id WOM returned - competition_id is 0/None when the latest competition was requested
+	Competition_Id = competition["competition_id"]
+	#Refuse a competition that has already been paid out
+	if sql_wom.WOM_Competition_Points_Assigned_Get(SQL_Cursor, Competition_Id):
+		Embed = embed_handling.Build(
+			title="Points Already Assigned",
+			description="Points have already been assigned for **%s** (competition `%d`)." % (competition["title"], Competition_Id),
+			colour=discord.Colour.red()
+		)
 		await embed_handling.Send(interaction, Embed, ephemeral=True)
 		return
 
@@ -205,13 +256,45 @@ async def Add_WOM_Competition(interaction: discord.Interaction, contribution: ap
 			colour=discord.Colour.green(),
 			fields=Result_Fields
 		)
-		#Edits the confirm dialog's OWN message via embed_handling.Embed_Update (a webhook edit),
-		#not Click_Interaction.response - that keeps this click's response slot free for
-		#Points_Adjust below, which sends its own separate confirmation message using the same
-		#interaction. Do not defer or respond to Click_Interaction anywhere above this line.
+		#Already paid, or being paid by another moderator's confirm right now. Checked and claimed
+		#with no await in between, so two confirms at once can't both get past this.
+		if sql_wom.WOM_Competition_Points_Assigned_Get(SQL_Cursor, Competition_Id) or Competition_Id in WOM_Competitions_Paying:
+			Result_Embed = embed_handling.Build(
+				title="Points Addition Cancelled",
+				description="⚠️ Points have already been assigned for **%s** - no points added." % competition["title"],
+				colour=discord.Colour.orange()
+			)
+			await Click_Interaction.response.defer()
+			await embed_handling.Update(View, Result_Embed, New_View=View)
+			View.stop()
+			return
+		WOM_Competitions_Paying.add(Competition_Id)
+		try:
+			#Record (or refresh) the validated competition, then pay. Points_Adjust sends its own
+			#confirmation using Click_Interaction's response, so nothing above responds to it.
+			sql_wom.WOM_Competition_Upsert_From_Data(SQL_Connection, SQL_Cursor, competition)
+			Transactions = await Points_Adjust(Click_Interaction, contribution, level, Members, 0, True)
+			if not Transactions:
+				Result_Embed = embed_handling.Build(
+					title="Points Addition Failed",
+					description="❌ No points were added for **%s**, so it has not been marked as paid." % competition["title"],
+					colour=discord.Colour.red()
+				)
+			#Only now that the points exist is the competition flagged as paid. One retry, so a
+			#dropped database connection between paying and flagging doesn't leave it payable twice.
+			elif not _WOM_Competition_Flag_Paid(Competition_Id):
+				Result_Embed = embed_handling.Build(
+					title="Points Added - Not Flagged",
+					description="⚠️ Points were added for **%s**, but it couldn't be marked as paid. "
+						"Don't run it again - ask an admin to set points_assigned for competition `%d`."
+						% (competition["title"], Competition_Id),
+					colour=discord.Colour.orange()
+				)
+		finally:
+			WOM_Competitions_Paying.discard(Competition_Id)
+		#Edits the confirm dialog's OWN message via embed_handling.Update (a webhook edit), not
+		#Click_Interaction.response, which Points_Adjust has used for its own message.
 		await embed_handling.Update(View, Result_Embed, New_View=View)
-		await Points_Adjust(Click_Interaction, contribution, level, Members, 0, True)
-		sql_wom.WOM_Competition_Points_Assigned(SQL_Connection, SQL_Cursor, competition_id)
 		View.stop()
 
 	async def _Cancel_Clicked(Click_Interaction: discord.Interaction, View):

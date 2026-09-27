@@ -27,6 +27,9 @@ def SQL_Verify_And_Connect(SQL_Host, SQL_User, SQL_Pass, SQL_Database, SQL_Table
 	)
 	#Display mysql connection
 	print(f" SQL : Connecting to MySQL Database : {SQL_Connection}")
+	#Wrap the connection so it reconnects by itself after an idle timeout or server restart -
+	#see Reconnecting_Connection below. Everything else keeps using it exactly as before.
+	SQL_Connection = Reconnecting_Connection(SQL_Connection)
 	#Create cursor to move around the database to gather requests
 	SQL_Cursor = SQL_Connection.cursor(buffered=True)
 	#Verify all tables exist
@@ -43,6 +46,122 @@ def SQL_Verify_And_Connect(SQL_Host, SQL_User, SQL_Pass, SQL_Database, SQL_Table
 	    #SQL_Cursor.close()
 	    #SQL_Connection.close()
 	return SQL_Connection, SQL_Cursor
+
+# ---------------------------------------------------------------------------
+# Reconnecting to the database
+# ---------------------------------------------------------------------------
+#
+# The bot holds one MySQL connection for its whole life. MySQL closes a connection
+# that has been idle for wait_timeout (8 hours by default), and a server restart
+# drops it too; before this, every query after that failed, and Query_Dicts_Get
+# swallowing the error meant they quietly returned None.
+#
+# Reconnecting_Connection / Reconnecting_Cursor wrap the real connection and its
+# cursors, and pass everything else straight through, so the SQL_Connection and
+# SQL_Cursor handed around the bot are used exactly as before:
+#   - Before running a statement after SQL_IDLE_PING_SECONDS without using the
+#     connection, it pings it, reconnecting if the server has dropped it. This is
+#     what catches the idle timeout. A busy connection isn't pinged, so the
+#     statements of one transaction never have a reconnect land between them.
+#   - If a statement still fails because the connection was lost (e.g. the server
+#     restarted mid-idle-window), it reconnects straight away. A SELECT/SHOW is
+#     then retried once, since reading twice is harmless. Anything else re-raises
+#     as before, so the caller's own rollback/error handling runs and nothing is
+#     half-replayed; the next statement goes to the fresh connection.
+#   - Reconnecting waits up to SQL_RECONNECT_ATTEMPTS x SQL_RECONNECT_DELAY seconds.
+#     If the server is still unreachable it raises, and the next statement tries again.
+
+import time
+import mysql.connector
+
+SQL_IDLE_PING_SECONDS = 60
+SQL_RECONNECT_ATTEMPTS = 3
+SQL_RECONNECT_DELAY = 2
+
+class Reconnecting_Connection:
+	def __init__(self, Connection):
+		self._Connection = Connection
+		self._Last_Used = time.monotonic()
+
+	def Touch(self):
+		self._Last_Used = time.monotonic()
+
+	def Ensure_Connected(self):
+		"""Ping (reconnecting if needed) when the connection has sat idle."""
+		if time.monotonic() - self._Last_Used >= SQL_IDLE_PING_SECONDS:
+			self._Connection.ping(reconnect=True, attempts=SQL_RECONNECT_ATTEMPTS, delay=SQL_RECONNECT_DELAY)
+			self.Touch()
+
+	def Reconnect(self):
+		print("SQL : Connection lost - reconnecting")
+		self._Connection.reconnect(attempts=SQL_RECONNECT_ATTEMPTS, delay=SQL_RECONNECT_DELAY)
+		self.Touch()
+		print("SQL : Reconnected")
+
+	def Is_Lost(self):
+		try:
+			return not self._Connection.is_connected()
+		except Exception:
+			return True
+
+	def cursor(self, *Args, **Kwargs):
+		self.Ensure_Connected()
+		return Reconnecting_Cursor(self, Args, Kwargs)
+
+	def commit(self):
+		self._Connection.commit()
+		self.Touch()
+
+	def rollback(self):
+		try:
+			self._Connection.rollback()
+		except mysql.connector.Error:
+			#A rollback on a lost connection has nothing to undo - the server already did it
+			if not self.Is_Lost():
+				raise
+		self.Touch()
+
+	#Everything else (in_transaction, disconnect, ...) is the real connection's
+	def __getattr__(self, Name):
+		return getattr(self._Connection, Name)
+
+	def __repr__(self):
+		return repr(self._Connection)
+
+class Reconnecting_Cursor:
+	def __init__(self, Owner, Args, Kwargs):
+		self._Owner = Owner
+		self._Args = Args
+		self._Kwargs = Kwargs
+		self._Cursor = Owner._Connection.cursor(*Args, **Kwargs)
+
+	def _Run(self, Method, Query, *Args, **Kwargs):
+		self._Owner.Ensure_Connected()
+		try:
+			Result = getattr(self._Cursor, Method)(Query, *Args, **Kwargs)
+		except mysql.connector.Error:
+			if not self._Owner.Is_Lost():
+				raise
+			self._Owner.Reconnect()
+			self._Cursor = self._Owner._Connection.cursor(*self._Args, **self._Kwargs)
+			if not str(Query).lstrip().upper().startswith(("SELECT", "SHOW")):
+				raise
+			Result = getattr(self._Cursor, Method)(Query, *Args, **Kwargs)
+		self._Owner.Touch()
+		return Result
+
+	def execute(self, Query, *Args, **Kwargs):
+		return self._Run("execute", Query, *Args, **Kwargs)
+
+	def executemany(self, Query, *Args, **Kwargs):
+		return self._Run("executemany", Query, *Args, **Kwargs)
+
+	#Everything else (fetchone, fetchall, rowcount, column_names, lastrowid, close, ...) is the real cursor's
+	def __getattr__(self, Name):
+		return getattr(self._Cursor, Name)
+
+	def __iter__(self):
+		return iter(self._Cursor)
 
 #Ensure the database exists
 def Database_Verify(SQL_Cursor, SQL_Database):

@@ -1,5 +1,6 @@
 # Import core libraries
 import os
+import asyncio
 import importlib
 import pkgutil
 import dotenv
@@ -77,41 +78,60 @@ for Command_File in Directory_Contents:
 			Command_Module_Code = f.read()
 		exec(Command_Module_Code, Command_Namespace)
 
+# One-time start-up work has run (on_ready fires again each time the Discord connection is re-established)
+Startup_Complete = False
+
 # Display ready message
 @Discord_Client.event
 async def on_ready():
+	global Startup_Complete
 	print('We have logged in as {0.user}'.format(Discord_Client))
+	First_Ready = not Startup_Complete
+	Startup_Complete = True
 
-	#Push command tree to users (not homeland for now)
-	print("Syncing Command Tree")
-	existing = tree.get_commands(guild=discord.Object(id=DISCORD_GUILD))
-	print(f"Locally registered before sync: {[c.name for c in existing]}")
-	try:
-		synced = await tree.sync(guild=discord.Object(id=DISCORD_GUILD))
-		print(f"Synced {len(synced)} command(s): {[c.name for c in synced]}")
-	except Exception as e:
-		print(f"Sync failed: {e}")
+	if First_Ready:
+		#Push command tree to users (not homeland for now)
+		print("Syncing Command Tree")
+		existing = tree.get_commands(guild=discord.Object(id=DISCORD_GUILD))
+		print(f"Locally registered before sync: {[c.name for c in existing]}")
+		try:
+			synced = await tree.sync(guild=discord.Object(id=DISCORD_GUILD))
+			print(f"Synced {len(synced)} command(s): {[c.name for c in synced]}")
+		except Exception as e:
+			print(f"Sync failed: {e}")
 
-	print("BOT : Attempting to match users")
-	discord_members = sql_account_discord.Members_Get(SQL_Cursor)
-	discord_ids = [result["discord_id"] for result in discord_members]
-	osrs_members = sql_account_osrs.Members_Get(SQL_Cursor)
-	player_ids = [result["player_id"] for result in osrs_members]
-	Link_Data = sql_account_link.Linked_Accounts_Attempt_Matches(SQL_Cursor, discord_members, osrs_members)
-	sql_account_link.Linked_Accounts_Attempt_Match_Display(Link_Data, discord_members, osrs_members)
-	await sql_account_link.Linked_Accounts_Attempt_Match_Strong_Update(SQL_Connection, SQL_Cursor, Link_Data, discord_members, osrs_members)
-	#known_links = sql_account_link.Linked_Accounts_Get(SQL_Cursor, discord_ids, player_ids)
-	
+		print("BOT : Attempting to match users")
+		discord_members = sql_account_discord.Members_Get(SQL_Cursor)
+		discord_ids = [result["discord_id"] for result in discord_members]
+		osrs_members = sql_account_osrs.Members_Get(SQL_Cursor)
+		player_ids = [result["player_id"] for result in osrs_members]
+		Link_Data = sql_account_link.Linked_Accounts_Attempt_Matches(SQL_Cursor, discord_members, osrs_members)
+		sql_account_link.Linked_Accounts_Attempt_Match_Display(Link_Data, discord_members, osrs_members)
+		await sql_account_link.Linked_Accounts_Attempt_Match_Strong_Update(SQL_Connection, SQL_Cursor, Link_Data, discord_members, osrs_members)
+		#known_links = sql_account_link.Linked_Accounts_Get(SQL_Cursor, discord_ids, player_ids)
+	else:
+		print("Discord : connection re-established")
+
 	#Rank votes: re-register open votes' buttons, check the rank ladder against
-	#the server's roles, and start watching for votes whose time is up
-	#await poll_setup.On_Ready(Discord_Client, DISCORD_GUILD)
+	#the server's roles, start watching for votes whose time is up,
+	#and apply passed demotions / automatic promotions as their votes close.
+	#Runs on every ready: a restarted client starts with no views registered, so the
+	#buttons need adding again (the closer loop itself is only ever started once).
+	await poll_setup.On_Ready(SQL_Connection, SQL_Cursor, Discord_Client, DISCORD_GUILD, Command_Namespace["Promotion_On_Poll_Closed"])
 
-	#Scheduled tasks: run any run_on_startup blocks immediately
-	await task_scheduler.On_Ready(Command_Namespace)
+	if First_Ready:
+		#Scheduled tasks: run any run_on_startup blocks immediately
+		await task_scheduler.On_Ready(Command_Namespace)
 
 	#Bot ready to perform async actions on demand
 	print("Bot Ready!")
 
-# Connect to discord using the bot's API Token
+# Connect to discord using the bot's API Token, reconnecting whenever the connection
+# fails outright (see Functions/discord_connection.py). Logging is set up as
+# Discord_Client.run() used to do.
 print("Connecting bot to discord")
-Discord_Client.run(DISCORD_TOKEN)
+discord.utils.setup_logging()
+try:
+	asyncio.run(discord_connection.Run_Forever(Discord_Client, DISCORD_TOKEN))
+except KeyboardInterrupt:
+	print("Bot stopped")

@@ -21,7 +21,8 @@
 # Icons are looked up live against the guild's current emoji list, matched by
 # the rank's name - the same as before this migration. Everywhere an icon is
 # needed, the caller already holds a live discord.Role (building a vote's
-# question/answers in rank_vote.py, or the grant message in Poll_Grant.py), so
+# question/answers in Commands/promotions.py, or the grant messages in
+# Commands/promotions.py and Commands/polls.py), so
 # there's no need to store discord_role_icon at all: a renamed rank or a
 # changed emoji is picked up immediately, with nothing to keep in sync.
 

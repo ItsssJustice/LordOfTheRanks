@@ -34,19 +34,6 @@ def Transaction_Create(SQL_Connection, SQL_Cursor, token_id, member, points):
 	print(f"SQL : Token ID {token_id} created {Transactions} transactions")
 	return SQL_Cursor.rowcount
 
-#SQL Query for adding points for a WOM competition
-def Points_Transaction_Insert_WOM(SQL_Connection, SQL_Cursor, token_id, member, points):
-	competition = Competition_Data["competition"]
-	if not competition:
-		print("No competition found.")
-		return
-	results = competition["results"]
-	if not results:
-		print("No results found.")
-		return
-	##TEMPORARY
-	return
-
 #SQL Query for enabling or disabling a points token
 def Token_Toggle_Enable(SQL_Connection, SQL_Cursor, author_discord_id, token_id, enabled):
 	# Also ensure created_at is within the allowed number of days

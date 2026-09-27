@@ -122,7 +122,7 @@ async def Link_Set_Main(interaction: discord.Interaction, member: discord.Member
 	Links = sql_account_link.Linked_Accounts_Get(SQL_Cursor, discord_id=member.id, player_id=None) or []
 	Osrs_Members = sql_account_osrs.Members_Get(SQL_Cursor) or []
 	RSN_Lookup = {M["player_id"]: M["current_rsn"] for M in Osrs_Members}
-	Message = "Main account changed for %s:\n%s" % (member.mention, link_format.Linked_Accounts_List(member, Links, RSN_Lookup))
+	Message = "Main account changed for %s:\n%s" % (member.mention, Linked_Accounts_List(member, Links, RSN_Lookup))
 	await interaction.response.send_message(Message, ephemeral=True)
 	await bot_config.Notify_Channel(interaction.client, DISCORD_NOTIFICATION_CHANNEL_ACCOUNT_LINK, f"⭐ {interaction.user.mention} set {member.mention}'s main account to RSN '{runescape_name}'.")
 	return Result
@@ -193,11 +193,13 @@ Links_Group = app_commands.Group(name="linked_accounts", description="Manage OSR
 #Command for adding points
 @Links_Group.command(name="add_or_update", description="Add or Update a link between a discord member and RSN")
 async def link_add(interaction: discord.Interaction, member: discord.Member = None, runescape_name: str = None, is_main_account: bool = False) -> None:
-	await Link_Update(interaction, member, runescape_name, is_main_account)
+	#Leaving member out means the caller's own links, as set_main_rsn and view do
+	await Link_Update(interaction, member if member is not None else interaction.user, runescape_name, is_main_account)
 
 @Links_Group.command(name="delete", description="Delete a link between a discord member and RSN")
 async def link_delete(interaction: discord.Interaction, member: discord.Member = None, runescape_name: str = None) -> None:
-	await Link_Delete(interaction, member, runescape_name)
+	#Leaving member out means the caller's own links, as set_main_rsn and view do
+	await Link_Delete(interaction, member if member is not None else interaction.user, runescape_name)
 
 @Links_Group.command(name="toggle_lock", description="Lock changing or deleting account links for a specific discord id")
 async def link_lock(interaction: discord.Interaction, member: discord.Member) -> None:

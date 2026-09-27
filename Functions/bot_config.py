@@ -1,3 +1,6 @@
+import discord
+from Functions import sql_config
+
 #Get an env variable including required imports, for use inside functions to reduce duplicated imports
 def env_get(Variable):
 	import os
@@ -165,3 +168,10 @@ async def Notify_Channel(client, Channel_ID = None, Message = None):
 		await Channel.send(Message)
 	except Exception:
 		return
+
+#Get a single bot_config value by name, or None if the entry doesn't exist
+def Get_Value_By_Name(SQL_Cursor, Config_Name):
+	Rows = sql_config.Query_Dicts_Get(SQL_Cursor, "SELECT config_value FROM bot_config WHERE config_name = %s", (Config_Name,))
+	if not Rows:
+		return None
+	return Rows[0]["config_value"]

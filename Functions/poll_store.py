@@ -21,8 +21,8 @@
 #   rather than freezing whatever it was when the poll opened, as the old JSON
 #   copies did. Icons are NOT part of the hydrated Record: they need a live
 #   discord.Role/Guild to look up (see rank_ladder.Icon), which a plain SQL
-#   read has no access to, so callers that need one (rank_vote.py,
-#   Poll_Grant.py) look it up themselves once they hold the Role.
+#   read has no access to, so callers that need one (Commands/promotions.py,
+#   Commands/polls.py) look it up themselves once they hold the Role.
 #   The trade-off with role_id/role_name: a closed-but-not-yet-applied poll
 #   resolves /pollgrant's role to whatever discord_promotion_ranks CURRENTLY
 #   maps that rank to, not necessarily the role that was live when the vote
@@ -130,9 +130,9 @@ def Open_Records(SQL_Cursor):
     return [_Hydrate(SQL_Cursor, Row) for Row in sql_poll.Polls_Search(SQL_Cursor, Only_Open=True)]
 
 
-def All_Records(SQL_Cursor):
-    """Every poll, hydrated. Used by the expired-poll closer loop."""
-    return [_Hydrate(SQL_Cursor, Row) for Row in sql_poll.Polls_Search(SQL_Cursor)]
+def Expired_Unclosed_Records(SQL_Cursor):
+    """Polls past their deadline but not closed yet, hydrated. Used by the expired-poll closer loop."""
+    return [_Hydrate(SQL_Cursor, Row) for Row in sql_poll.Polls_Expired_Unclosed_Get(SQL_Cursor)]
 
 
 def Is_Rank_Vote(Record):
@@ -223,6 +223,9 @@ def Record_Vote(SQL_Connection, SQL_Cursor, Poll_Id, User_Id, Answer_Index):
         return False, "That poll no longer exists."
     if Is_Closed(Record):
         return False, "Voting on this poll has closed."
+    # Nobody votes on their own promotion or demotion
+    if Is_Rank_Vote(Record) and Record.get("subject_id") == User_Id:
+        return False, "You can't vote on a promotion or demotion vote about yourself."
 
     Current = sql_poll.Poll_Vote_Get_For(SQL_Cursor, Poll_Id, User_Id)
 

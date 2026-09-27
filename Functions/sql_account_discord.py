@@ -1,3 +1,5 @@
+import datetime
+from mysql.connector import Error as MySQLError
 from Functions import sql_config
 
 #Determine if a discord user is a moderator and their respective level required
@@ -80,6 +82,15 @@ def Members_List_Update(SQL_Connection, SQL_Cursor, members, member_id=None):
     ]
     cursor = SQL_Connection.cursor()
     try:
+        # Stamp when an existing member's rank changes, before the upsert below
+        # overwrites the old value. Bound as a Python UTC instant rather than
+        # NOW(), which follows the server's session timezone (see sql_poll.Polls_Search).
+        # New members are left NULL: promotion_rules reads NULL as "no wait owed".
+        Now = datetime.datetime.utcnow()
+        Stamp_Rows = [(Now, Row[0], Row[5]) for Row in rows]
+        cursor.executemany(
+            "UPDATE discord_members SET promotion_rank_updated_at = %s WHERE discord_id = %s AND promotion_rank_id <> %s",
+            Stamp_Rows)
         sql = """INSERT INTO discord_members (discord_id, name_user, name_global, name_display, name_nick, promotion_rank_id, discriminator) VALUES (%s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE name_user = VALUES(name_user), name_global = VALUES(name_global), name_display = VALUES(name_display), name_nick = VALUES(name_nick), promotion_rank_id = VALUES(promotion_rank_id), discriminator = VALUES(discriminator)"""
         cursor.executemany(sql, rows)

@@ -41,6 +41,10 @@ async def End(interaction: discord.Interaction, poll_id: str):
 	if Record is None:
 		await interaction.response.send_message("No poll with ID '% s'." % poll_id, ephemeral=True)
 		return
+	#Closing a rank vote is a promotion function: moderators of level 1 and above only
+	if poll_store.Is_Rank_Vote(Record) and not sql_account_discord.Discord_Moderator_Command_Permitted(SQL_Cursor, interaction.user.id, 1):
+		await bot_config.Command_Permissions_Issue(interaction)
+		return
 	if poll_store.Is_Closed(Record):
 		await interaction.response.send_message("That poll is already closed.", ephemeral=True)
 		return
@@ -53,6 +57,15 @@ async def End(interaction: discord.Interaction, poll_id: str):
 	for Text, Count in Tally:
 		Lines.append("  %d - %s" % (Count, Text))
 	Lines.append(poll_format.Outcome(Tally))
+	#Passed demotions, and promotions onto an automatic rank, are applied as soon
+	#as the vote closes. Promotion_On_Poll_Closed lives in Commands/promotions.py;
+	#it is looked up in the shared exec namespace when this runs, so the order the
+	#command files load in doesn't matter.
+	Guild = interaction.client.get_guild(int(DISCORD_GUILD)) or interaction.guild
+	Auto_Result = await Promotion_On_Poll_Closed(interaction.client, Guild, Record)
+	if Auto_Result is not None:
+		Lines.append("")
+		Lines.append(Promotion_Auto_Grant_Text(Auto_Result))
 	await interaction.followup.send("\n".join(Lines), ephemeral=True)
 
 async def Results(interaction: discord.Interaction, poll_id: str):
@@ -124,6 +137,10 @@ async def Grant(interaction: discord.Interaction, poll_id: str, apply: bool = Fa
 	Record = poll_store.Find_By_Key(SQL_Cursor, poll_id)
 	if Record is None:
 		await interaction.response.send_message("No poll with ID '% s'." % poll_id, ephemeral=True)
+		return
+	#Applying a promotion or demotion vote: moderators of level 2 and above only
+	if poll_store.Is_Rank_Vote(Record) and not sql_account_discord.Discord_Moderator_Command_Permitted(SQL_Cursor, interaction.user.id, 2):
+		await bot_config.Command_Permissions_Issue(interaction)
 		return
 	await interaction.response.defer(ephemeral=True)
 	# Guard on the vote being a rank vote, not merely on it naming somebody: this
@@ -288,7 +305,7 @@ async def results_id_autocomplete(interaction: discord.Interaction, current: str
 @app_commands.default_permissions(manage_roles=True)
 @app_commands.describe(poll_id="The poll's ID, shown at the bottom of the poll message", force="Show the breakdown before voting has closed")
 async def results_detailed(interaction: discord.Interaction, poll_id: str, force: bool = False):
-	Results_Detailed(interaction, poll_id, force)
+	await Results_Detailed(interaction, poll_id, force)
 @results_detailed.autocomplete("poll_id")
 async def results_detailed_id_autocomplete(interaction: discord.Interaction, current: str):
 	return [app_commands.Choice(name=Display, value=Key)
