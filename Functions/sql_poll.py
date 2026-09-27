@@ -154,6 +154,16 @@ def Polls_Expired_Unclosed_Get(SQL_Cursor):
     Query = "SELECT %s FROM polls WHERE closed = FALSE AND closes_at <= %%s ORDER BY closes_at" % _POLL_COLUMNS
     return sql_config.Query_Dicts_Get(SQL_Cursor, Query, (datetime.datetime.utcnow(),)) or []
 
+# The newest promotion or demotion vote about this member that is still open, or
+# None. Open means not closed by hand and not past its deadline, reckoned against
+# Python's UTC clock the same way as poll_store.Is_Closed.
+def Rank_Vote_Open_For_Subject_Get(SQL_Cursor, Subject_Id):
+    Query = ("SELECT %s FROM polls WHERE subject_id = %%s AND poll_type IN (%d, %d) "
+             "AND closed = FALSE AND closes_at > %%s ORDER BY created_at DESC LIMIT 1"
+             % (_POLL_COLUMNS, POLL_TYPE_PROMOTION, POLL_TYPE_DEMOTION))
+    Rows = sql_config.Query_Dicts_Get(SQL_Cursor, Query, (Subject_Id, datetime.datetime.utcnow()))
+    return Rows[0] if Rows else None
+
 # ---------------------------------------------------------------------------
 # Rank ladder support (discord_promotion_ranks / discord_roles)
 # ---------------------------------------------------------------------------

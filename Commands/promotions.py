@@ -51,6 +51,14 @@ def Promotion_Answers(Current_Label, Target_Label):
 def Promotion_Rule_Text(Code, Details, Subject, Target):
 	if Code == "self_vote":
 		return "You can't open a promotion or demotion vote on yourself."
+	elif Code == "vote_in_progress":
+		Open_Vote = Details["poll"]
+		Kind = "demotion" if Open_Vote["poll_type"] == sql_poll.POLL_TYPE_DEMOTION else "promotion"
+		Key = poll_store.Poll_Key_Encode(Open_Vote["poll_id"])
+		return ("There's already a %s vote open on **%s** (`%s`), closing %s. Only one rank vote can run "
+				"on a member at a time - wait for it to close, or close it early with `/rank_vote end poll_id:%s`."
+				% (Kind, Subject.display_name, Key,
+				   discord.utils.format_dt(poll_store.As_Aware(Open_Vote["closes_at"]), "R"), Key))
 	elif Code == "caller_no_rank":
 		return "You don't hold a rank on the ladder, so you can't open rank votes."
 	elif Code == "rank_too_low":
@@ -102,8 +110,10 @@ async def Promotion_Start(SQL_Connection, SQL_Cursor, client, interaction, Direc
 	if Problem:
 		await interaction.response.send_message(Problem, ephemeral=True)
 		return
-	# Who may open this vote: never on yourself, promotions no higher than your
-	# own rank (with a delay for your own), demotions only of members below you
+	# Who may open this vote: never on yourself, never while another rank vote on
+	# them is open, promotions no higher than your own rank (with a delay for your
+	# own), demotions only of members below you. Nothing between this check and
+	# poll_store.Create below awaits, so two moderators can't both slip past it.
 	Rule_Code, Rule_Details = promotion_rules.Rank_Vote_Start_Permitted(SQL_Cursor, interaction.user, member, Current, Target, Direction)
 	if Rule_Code is not None:
 		await interaction.response.send_message(Promotion_Rule_Text(Rule_Code, Rule_Details, member, Target), ephemeral=True)

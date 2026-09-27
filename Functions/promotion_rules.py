@@ -4,6 +4,8 @@
 #
 #   Both directions
 #     Nobody may open a vote on themselves.
+#     Only one rank vote runs on a member at a time: while a promotion or demotion
+#     vote about them is still open, no other can be opened on them.
 #
 #   Promotions
 #     1. The caller's own rank must be equal to or above the rank the member would
@@ -22,6 +24,7 @@
 # Rank_Vote_Start_Permitted returns (code, details) for the command layer to phrase:
 #   None                  allowed
 #   "self_vote"           the caller is the member being voted on
+#   "vote_in_progress"    a promotion/demotion vote on this member is still open - details["poll"]
 #   "caller_no_rank"      the caller holds no rank on the ladder
 #   "rank_too_low"        promotion rule 1 - details["caller_role"]
 #   "equal_rank_wait"     promotion rule 2, still inside the wait - details["until"], details["wait_days"]
@@ -32,7 +35,7 @@
 #   "subject_not_below"   demotion of a member at or above the caller's rank - details["caller_role"]
 
 import datetime
-from Functions import bot_config, sql_promotion, rank_ladder
+from Functions import bot_config, sql_poll, sql_promotion, rank_ladder
 
 EQUAL_RANK_DELAY_CONFIG = "moderator_promotion_equal_rank_delay_days"
 
@@ -40,6 +43,10 @@ def Rank_Vote_Start_Permitted(SQL_Cursor, Caller, Subject, Subject_Role, Target_
 	Details = {}
 	if Caller.id == Subject.id:
 		return "self_vote", Details
+	Open_Vote = sql_poll.Rank_Vote_Open_For_Subject_Get(SQL_Cursor, Subject.id)
+	if Open_Vote is not None:
+		Details["poll"] = Open_Vote
+		return "vote_in_progress", Details
 	Caller_Role = rank_ladder.Current_Rank(SQL_Cursor, Caller)
 	if Caller_Role is None:
 		return "caller_no_rank", Details
